@@ -1,0 +1,31 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Archivos de log
+*.log
+salmon_monitor.log
+
+# Archivos de configuración específicos del usuario
+# Cubrir todas las posibles ubicaciones del archivo rafts.json
+salmon-twin/config/rafts.json
+*/config/rafts.json
+**/config/rafts.json
+
+# Distribución / empaquetado
+dist/
+build/
+*.egg-info/
+
+# Entornos virtuales
+venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+# ...existing patterns...
