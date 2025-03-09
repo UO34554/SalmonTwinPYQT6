@@ -1,0 +1,6 @@
+{
+    "files": [
+        "salmonResources.qrc",
+        "src/ui/dashboard.ui"
+    ]
+}

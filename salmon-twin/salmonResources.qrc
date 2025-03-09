@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>assets/icons/fish-breeding.ico</file>
+    </qresource>
+</RCC>

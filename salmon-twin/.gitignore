@@ -28,4 +28,6 @@ ENV/
 .vscode/
 *.swp
 *.swo
-# ...existing patterns...
+
+# Qt Creator
+.qtcreator/

@@ -4,34 +4,18 @@
 """
 import sys
 import config as cfg
-
-from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox
+from PySide6 import QtWidgets
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtCore import QFile
 
-# Important:
-# You need to run the following command to generate the ui_form.py file
-#     pyside6-uic form.ui -o ui_form.py, or
-#     pyside2-uic form.ui -o ui_form.py
-#from ui_form import Ui_DashBoard
-
-class DashBoard(QMainWindow):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        #self.ui = Ui_DashBoard()
-        #self.ui.setupUi(self)
-        loader = QUiLoader()
-        ui_file = QFile(cfg.UI_DASHBOARD_FILE)
-        if not ui_file.exists():           
-            QMessageBox.critical(self, "Error", cfg.UI_DASHBOARD_FILE_NOT_FOUND_MESSAGE.format(cfg.UI_DASHBOARD_FILE))
-            sys.exit(-1)
-        ui_file.open(QFile.ReadOnly)
-        self.ui = loader.load(ui_file, self)
-        ui_file.close()
-
+# Se importan los recursos compilados de salmonResources.qrc
+# para compilar: 
+# cd salmon-twin
+# pyside6-rcc salmonResources.qrc -o src/resources.py
+import resources
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    widget = DashBoard()
-    widget.show()
-    sys.exit(app.exec())
+    loader = QUiLoader()
+    app = QtWidgets.QApplication(sys.argv)    
+    dashboard_view = loader.load(cfg.UI_DASHBOARD_FILE, None)    
+    dashboard_view.show()
+    app.exec()
