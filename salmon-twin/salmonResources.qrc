@@ -1,5 +1,7 @@
 <RCC>
     <qresource prefix="/">
         <file>assets/icons/fish-breeding.ico</file>
+        <file>assets/images/salmon-back-medium.jpg</file>
+        <file>assets/images/salmon-back.jpg</file>
     </qresource>
 </RCC>
