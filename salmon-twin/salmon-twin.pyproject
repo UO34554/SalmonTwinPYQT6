@@ -1,6 +1,7 @@
 {
     "files": [
         "salmonResources.qrc",
-        "src/ui/dashboard.ui"
+        "src/ui/dashboard.ui",
+        "src/ui/raftConfig.ui"
     ]
 }

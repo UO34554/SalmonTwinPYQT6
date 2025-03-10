@@ -17,6 +17,7 @@ UI_DASHBOARD_FILE_NOT_FOUND_MESSAGE = "No se encontró el archivo de interfaz de
 
 #--- Rutas específicas de configuración
 RAFTS_CONFIG_FILE = os.path.join(CONFIG_DIR, "rafts.json")
+UI_RAFTCONFIG_FILE = os.path.join(BASE_DIR, "ui", "raftConfig.ui")
 
 #--- Cadenas para la clase de DataTemperature en data_temperature.py
 TEMPERATURE_PARSE_ERROR = "Error de parsear al procesar los datos de temperatura."

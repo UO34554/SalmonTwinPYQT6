@@ -6,6 +6,7 @@ import sys
 import config as cfg
 from PySide6 import QtWidgets
 from PySide6.QtUiTools import QUiLoader
+from PySide6.QtCore import Qt
 
 # Se importan los recursos compilados de salmonResources.qrc
 # para compilar: 
@@ -16,6 +17,8 @@ import resources
 if __name__ == "__main__":
     loader = QUiLoader()
     app = QtWidgets.QApplication(sys.argv)    
-    dashboard_view = loader.load(cfg.UI_DASHBOARD_FILE, None)    
-    dashboard_view.show()
+    dashboard_view = loader.load(cfg.UI_DASHBOARD_FILE, None)
+    raftConfig_view = loader.load(cfg.UI_RAFTCONFIG_FILE, None)
+    dashboard_view.show()    
+    raftConfig_view.show()
     app.exec()

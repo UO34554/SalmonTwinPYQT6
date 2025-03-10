@@ -3,5 +3,6 @@
         <file>assets/icons/fish-breeding.ico</file>
         <file>assets/images/salmon-back-medium.jpg</file>
         <file>assets/images/salmon-back.jpg</file>
+        <file>assets/images/salmon-red-mini.jpeg</file>
     </qresource>
 </RCC>

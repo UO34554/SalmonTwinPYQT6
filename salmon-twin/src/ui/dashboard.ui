@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>MainWindow</class>
- <widget class="QMainWindow" name="MainWindow">
+ <class>DashBoard</class>
+ <widget class="QMainWindow" name="DashBoard">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -16,8 +16,11 @@
     <height>800</height>
    </size>
   </property>
+  <property name="acceptDrops">
+   <bool>false</bool>
+  </property>
   <property name="windowTitle">
-   <string>MainWindow</string>
+   <string>Cuadro de Mando - SalmonTwin</string>
   </property>
   <property name="windowIcon">
    <iconset resource="../../salmonResources.qrc">
@@ -29,7 +32,8 @@
   <property name="styleSheet">
    <string notr="true">QMainWindow {   
 	background-image: url(:/assets/images/salmon-back.jpg);
-	background-position: center;		
+	background-position: center;	
+	font: 14pt &quot;Segoe UI&quot;;	
 }
 </string>
   </property>
@@ -44,13 +48,13 @@
      <x>0</x>
      <y>0</y>
      <width>1200</width>
-     <height>32</height>
+     <height>27</height>
     </rect>
    </property>
    <property name="font">
     <font>
      <family>Segoe UI</family>
-     <pointsize>14</pointsize>
+     <pointsize>12</pointsize>
      <italic>false</italic>
      <bold>false</bold>
     </font>
@@ -59,17 +63,17 @@
     <string notr="true">QMenuBar {
 	background-color: rgb(182, 182, 182);
     color: rgb(255, 255, 255);
-	font: 14pt &quot;Segoe UI&quot;;
+	font: 12pt &quot;Segoe UI&quot;;
 }
 QMenu {
 	background-color: rgb(182, 182, 182);
     color: rgb(255, 255, 255); 
-	font: 14pt &quot;Segoe UI&quot;;
+	font: 12pt &quot;Segoe UI&quot;;
 }
 QStatusBar {
 	background-color: rgb(182, 182, 182);
     color: rgb(255, 255, 255); 
-	font: 14pt &quot;Segoe UI&quot;;
+	font: 12pt &quot;Segoe UI&quot;;
 }
 </string>
    </property>
@@ -78,6 +82,7 @@ QStatusBar {
      <string>Balsas</string>
     </property>
     <addaction name="actionVer"/>
+    <addaction name="separator"/>
     <addaction name="actionConfigurar"/>
    </widget>
    <widget class="QMenu" name="menuTemperatura">
@@ -85,6 +90,7 @@ QStatusBar {
      <string>Temperatura</string>
     </property>
     <addaction name="actionCargar"/>
+    <addaction name="separator"/>
     <addaction name="actionPredecir"/>
    </widget>
    <addaction name="menuBalsas"/>
@@ -101,7 +107,7 @@ QStatusBar {
     <string notr="true">QStatusBar {
 	background-color: rgb(182, 182, 182);
     color: rgb(255, 255, 255); 
-	font: 14pt &quot;Segoe UI&quot;;
+	font: 12pt &quot;Segoe UI&quot;;
 }</string>
    </property>
   </widget>
