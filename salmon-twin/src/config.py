@@ -18,6 +18,12 @@ UI_DASHBOARD_FILE_NOT_FOUND_MESSAGE = "No se encontró el archivo de interfaz de
 #--- Rutas específicas de configuración
 RAFTS_CONFIG_FILE = os.path.join(CONFIG_DIR, "rafts.json")
 UI_RAFTCONFIG_FILE = os.path.join(BASE_DIR, "ui", "raftConfig.ui")
+RAFTS_LOADED_MESSAGE = "Se cargaron {count} balsas marinas."
+RAFTS_JSON_DECODE_ERROR_MESSAGE = "Error al decodificar el archivo de configuración JSON: {error}"
+RAFTS_LOAD_ERROR_MESSAGE = "Error al cargar el archivo de configuración: {error}"
+RAFTS_EMPTY_CONFIG_MESSAGE = "No se encontraron balsas marinas en el archivo de configuración."
+RAFTS_EMPTY_CONFIG_CREATED_MESSAGE = "Se creó un archivo de configuración vacío para balsas marinas."
+RAFTS_EMPTY_CONFIG_ERROR_MESSAGE = "Error al crear un archivo de configuración vacío: {error}"
 
 #--- Cadenas para la clase de DataTemperature en data_temperature.py
 TEMPERATURE_PARSE_ERROR = "Error de parsear al procesar los datos de temperatura."
