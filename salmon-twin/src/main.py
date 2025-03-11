@@ -24,6 +24,7 @@ if __name__ == "__main__":
     if not raftConfig_control.load_rafts():    
         print(raftConfig_control.lastError)
     raftConfig_control.view.show()
+    raftConfig_control.show_rafts()
     #dashboard_view.show()    
     #raftConfig_view.show()
     app.exec()

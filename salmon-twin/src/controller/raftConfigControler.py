@@ -6,6 +6,7 @@ import json
 import config
 import os
 from  model.seaRaft import seaRaft
+from PySide6.QtCore import QStringListModel
 
 class raftConfigController:
     def __init__(self,view):
@@ -15,7 +16,42 @@ class raftConfigController:
         # Inicializar el último error
         self.lastError = None
         self.view = view
+        # Conectar la señal de clic en la lista con el manejador de eventos        
+        self.view.listView.clicked.connect(self.on_item_clicked)
+
+    # --- Eventos de la vista ---
+    # Manejador de eventos para clic en la lista
+    def on_item_clicked(self, index):
+        # Obtener el índice de la lista
+        item = index.data()
+        # Obtener la balsa seleccionada
+        raft = self.get_raft_by_name(item)
+        # Mostrar la balsa en la vista
+        self.show_raft(raft)
     
+    # --- Métodos de la lógica de negocio ---
+    # Devuelve una balsa por su nombre
+    def get_raft_by_name(self, name:str)->seaRaft:
+        for raft in self.rafts:
+            if raft.getName() == name:
+                return raft
+        return None
+    
+    # Muestra una balsa en la vista
+    def show_raft(self, raft:seaRaft):
+        if raft:
+            self.view.id.setText(str(raft.getId()))
+            self.view.name.setText(raft.getName())
+            self.view.region.setText(raft.getSeaRegion())
+            self.view.initialDate.setDate(raft.getStartDate())
+            self.view.finalDate.setDate(raft.getEndDate())
+        else:
+            self.view.id.setText('')
+            self.view.name.setText('')
+            self.view.region.setText('')
+            self.view.initialDate.setDate(self.view.initialDate.minimumDate())
+            self.view.finalDate.setDate(self.view.finalDate.minimumDate())
+
     # Devuelve una lista de las regiones marítimas disponibles.    
     def get_sea_regions(self):        
         return config.SEA_REGIONS
@@ -62,3 +98,18 @@ class raftConfigController:
             self.lastError = config.RAFTS_EMPTY_CONFIG_CREATED_MESSAGE
         except Exception as e:
             self.lastError = config.RAFTS_EMPTY_CONFIG_ERROR_MESSAGE.format(error=str(e))
+
+    # Muestra las balsas en la vista
+    def show_rafts(self):
+        # Crear un modelo de lista
+        model = QStringListModel()
+        # Obtener la lista existente
+        items = model.stringList()
+        # Añadir el nuevo elemento        
+        for raft in self.rafts:            
+            items.append(raft.getName())
+        model.setStringList(items)
+        # Configurar el modelo en la vista
+        self.view.listView.setModel(model)
+        
+    
