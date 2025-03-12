@@ -1,7 +1,7 @@
 """
 @author: Pedro López Treitiño
 """
-import datetime
+from datetime import datetime
 import pandas as pd
 
 class seaRaft:        
@@ -14,32 +14,54 @@ class seaRaft:
         self.endDate = endDate        
         self.temperature = temperature
 
+    # --- Setters ---
+    def setId(self, id:int):
+        self.id = int(id)
+
+    def setName(self, name:str):
+        self.name = str(name)
+
+    def setSeaRegion(self, seaRegion:str):
+        self.seaRegion = str(seaRegion)
+
+    def setStartDate(self, startDate:datetime):
+        # Convertir la fecha a las 00:00:00
+        self.startDate = datetime.combine(startDate, datetime.min.time())
+
+    def setEndDate(self, endDate:datetime):
+        # Convertir la fecha a las 00:00:00
+        self.endDate = datetime.combine(endDate, datetime.min.time())
+        
+    def setTemperature(self, temperature:pd.DataFrame):
+        self.temperature = pd.DataFrame(temperature)
+
+    # --- Getters ---
     def getId(self)->int:
-        return self.id
+        return int(self.id)
 
     def getName(self)->str:
-        return self.name
+        return str(self.name)
 
     def getSeaRegion(self)->str:
-        return self.seaRegion
+        return str(self.seaRegion)
     
     def getStartDate(self)->datetime:
-        return self.startDate
+        return self.startDate.date()
     
     def getEndDate(self)->datetime:
-        return self.endDate
+        return self.endDate.date()
     
     def getTemperature(self)->pd.DataFrame:
-        return self.temperature
+        return pd.DataFrame(self.temperature)
     
     # Convierte los datos de la balsa a un diccionario para serialización
-    def to_dict(self):        
+    def to_dict(self):
         return {
             'id': self.id,
             'name': self.name,
             'seaRegion': self.seaRegion,
-            'startDate': self.startDate.isoformat() if self.startDate else None,
-            'endDate': self.endDate.isoformat() if self.endDate else None,
+            'startDate': self.startDate.isoformat(),
+            'endDate': self.endDate.isoformat()
             # No incluimos temperature aquí ya que es un DataFrame y no es serializable directamente
         }
     
@@ -54,14 +76,14 @@ class seaRaft:
 
             if 'startDate' in data and data['startDate']:
                 try:
-                    start_date = datetime.date.fromisoformat(data['startDate'])
+                    start_date = datetime.fromisoformat(data['startDate'])
                 except ValueError as e:
                     lastError = f"Error al convertir fecha de inicio: {e}"
                     return None, lastError
 
             if 'endDate' in data and data['endDate']:
                 try:
-                    end_date = datetime.date.fromisoformat(data['endDate'])
+                    end_date = datetime.fromisoformat(data['endDate'])
                 except ValueError as e:
                     lastError = f"Error al convertir fecha de fin: {e}"
                     return None, lastError

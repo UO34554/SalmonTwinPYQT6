@@ -174,7 +174,7 @@ QFrame {
          </property>
          <layout class="QHBoxLayout" name="horizontalLayout_2">
           <item>
-           <widget class="QPushButton" name="pushButton">
+           <widget class="QPushButton" name="addRaft">
             <property name="minimumSize">
              <size>
               <width>200</width>
@@ -187,7 +187,7 @@ QFrame {
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="pushButton_2">
+           <widget class="QPushButton" name="removeRaft">
             <property name="minimumSize">
              <size>
               <width>200</width>
@@ -297,7 +297,11 @@ QFrame {
             </widget>
            </item>
            <item row="0" column="1">
-            <widget class="QLineEdit" name="id"/>
+            <widget class="QLineEdit" name="id">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+            </widget>
            </item>
            <item row="1" column="0">
             <widget class="QLabel" name="label_4">
@@ -315,9 +319,6 @@ QFrame {
               <string>Región Marítima:</string>
              </property>
             </widget>
-           </item>
-           <item row="2" column="1">
-            <widget class="QLineEdit" name="region"/>
            </item>
            <item row="3" column="0">
             <widget class="QLabel" name="label_6">
@@ -367,6 +368,9 @@ QCalendarWidget QToolButton {
              </property>
             </widget>
            </item>
+           <item row="2" column="1">
+            <widget class="QComboBox" name="regions"/>
+           </item>
           </layout>
          </widget>
         </widget>
@@ -409,7 +413,7 @@ QCalendarWidget QToolButton {
          </property>
          <layout class="QHBoxLayout" name="horizontalLayout_3">
           <item>
-           <widget class="QPushButton" name="pushButton_3">
+           <widget class="QPushButton" name="saveRaft">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
               <horstretch>0</horstretch>

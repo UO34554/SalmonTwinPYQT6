@@ -24,6 +24,9 @@ RAFTS_LOAD_ERROR_MESSAGE = "Error al cargar el archivo de configuración: {error
 RAFTS_EMPTY_CONFIG_MESSAGE = "No se encontraron balsas marinas en el archivo de configuración."
 RAFTS_EMPTY_CONFIG_CREATED_MESSAGE = "Se creó un archivo de configuración vacío para balsas marinas."
 RAFTS_EMPTY_CONFIG_ERROR_MESSAGE = "Error al crear un archivo de configuración vacío: {error}"
+RAFTS_ID_NOT_FOUND = "La balsa con id={id} no existe"
+RAFTS_SAVE_ERROR_MESSAGE = "Error al guardar los datos de la balsa marina: {error}"
+RAFTS_NAME_ERROR_MESSAGE = "El nombre de la balsa marina no puede estar vacío."
 
 #--- Cadenas para la clase de DataTemperature en data_temperature.py
 TEMPERATURE_PARSE_ERROR = "Error de parsear al procesar los datos de temperatura."
