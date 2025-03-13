@@ -31,13 +31,10 @@ if __name__ == "__main__":
     # --- Instanciar los controladores de las vistas ---
     # Se usa el patrón de diseño MVC
     raftCon = raftConfigController(raftConfig_view)
-    dashCon = dashBoardController(dashboard_view)
+    dashCon = dashBoardController(dashboard_view,raftCon)
 
-    dashCon.view.show()
-    #if not raftCon.load_rafts():    
-        #print(raftCon.lastError)
-    #else:    
-        #raftCon.show_rafts()
+    # --- Mostrar la vista principal ---
+    dashCon.show() 
     
     # --- Ejecutar la aplicación ---
     result=app.exec()

@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>DashBoard</class>
+ <widget class="QMainWindow" name="DashBoard">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1200</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>1200</width>
+    <height>800</height>
+   </size>
+  </property>
+  <property name="acceptDrops">
+   <bool>false</bool>
+  </property>
+  <property name="windowTitle">
+   <string>Cuadro de Mando - SalmonTwin</string>
+  </property>
+  <property name="windowIcon">
+   <iconset resource="../../salmonResources.qrc">
+    <normaloff>:/assets/icons/fish-breeding.ico</normaloff>:/assets/icons/fish-breeding.ico</iconset>
+  </property>
+  <property name="autoFillBackground">
+   <bool>false</bool>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QMainWindow {   
+	background-image: url(:/assets/images/salmon-back.jpg);
+	background-position: center;	
+	font: 14pt &quot;Segoe UI&quot;;	
+}
+</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <property name="styleSheet">
+    <string notr="true"/>
+   </property>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1200</width>
+     <height>27</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Segoe UI</family>
+     <pointsize>12</pointsize>
+     <italic>false</italic>
+     <bold>false</bold>
+    </font>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">QMenuBar {
+	background-color: rgb(182, 182, 182);
+    color: rgb(255, 255, 255);
+	font: 12pt &quot;Segoe UI&quot;;
+}
+QMenu {
+	background-color: rgb(182, 182, 182);
+    color: rgb(255, 255, 255); 
+	font: 12pt &quot;Segoe UI&quot;;
+}
+QStatusBar {
+	background-color: rgb(182, 182, 182);
+    color: rgb(255, 255, 255); 
+	font: 12pt &quot;Segoe UI&quot;;
+}
+</string>
+   </property>
+   <widget class="QMenu" name="menuBalsas">
+    <property name="title">
+     <string>Balsas</string>
+    </property>
+    <addaction name="actionVer"/>
+    <addaction name="separator"/>
+    <addaction name="actionConfigurar"/>
+   </widget>
+   <widget class="QMenu" name="menuTemperatura">
+    <property name="title">
+     <string>Temperatura</string>
+    </property>
+    <addaction name="actionCargar"/>
+    <addaction name="separator"/>
+    <addaction name="actionPredecir"/>
+   </widget>
+   <addaction name="menuBalsas"/>
+   <addaction name="menuTemperatura"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
+   <property name="minimumSize">
+    <size>
+     <width>900</width>
+     <height>0</height>
+    </size>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">QStatusBar {
+	background-color: rgb(182, 182, 182);
+    color: rgb(255, 255, 255); 
+	font: 12pt &quot;Segoe UI&quot;;
+}</string>
+   </property>
+  </widget>
+  <action name="actionCargar">
+   <property name="text">
+    <string>Cargar</string>
+   </property>
+  </action>
+  <action name="actionPredecir">
+   <property name="text">
+    <string>Predecir</string>
+   </property>
+  </action>
+  <action name="actionVer">
+   <property name="text">
+    <string>Ver</string>
+   </property>
+  </action>
+  <action name="actionConfigurar">
+   <property name="text">
+    <string>Configurar</string>
+   </property>
+  </action>
+ </widget>
+ <resources>
+  <include location="../../salmonResources.qrc"/>
+ </resources>
+ <connections/>
+</ui>
