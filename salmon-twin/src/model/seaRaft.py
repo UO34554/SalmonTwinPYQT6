@@ -4,6 +4,7 @@
 from datetime import datetime
 import pandas as pd
 
+# Clase que representa una balsa marina
 class seaRaft:        
     
     def __init__(self, id=None, name=None, seaRegion=None, startDate=None, endDate=None, temperature=None):

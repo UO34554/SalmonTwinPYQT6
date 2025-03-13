@@ -1,5 +1,11 @@
 import os
 
+#--- Configuración de la aplicación
+APP_NAME = "SalmonTwin"
+APP_VERSION = "0.1"
+APP_START_MESSAGE = "Iniciando {0} Versión {1}".format(APP_NAME, APP_VERSION)
+APP_EXIT_MESSAGE = "Saliendo de la aplicación {0} con código de salida {1}".format(APP_NAME, "{0}")
+
 #--- Directorio base de la aplicación (asumiendo que este archivo está en src/)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 

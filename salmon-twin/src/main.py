@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 @author: Pedro López Treitiño
+Gestor unificado de balsas marinas para el sistema Salmon Twin
 """
 import sys
 import config as cfg
 from PySide6 import QtWidgets
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtCore import Qt
 from controller.raftConfigControler import raftConfigController
+from controller.dashBoardController import dashBoardController
 
 # Se importan los recursos compilados de salmonResources.qrc
 # para compilar: 
@@ -16,15 +17,29 @@ from controller.raftConfigControler import raftConfigController
 import resources
 
 if __name__ == "__main__":
-    loader = QUiLoader()
-    app = QtWidgets.QApplication(sys.argv)    
+    print(cfg.APP_START_MESSAGE)      
+    # --- Inicializar la aplicación ---
+    # sys.argv es una lista de argumentos pasados al script de Python
+    # no se utilizan en este caso
+    app = QtWidgets.QApplication(sys.argv)
+
+    # --- Cargar los archivos de UI ---
+    loader = QUiLoader()        
     dashboard_view = loader.load(cfg.UI_DASHBOARD_FILE, None)
     raftConfig_view = loader.load(cfg.UI_RAFTCONFIG_FILE, None)
-    raftConfig_control = raftConfigController(raftConfig_view)
-    if not raftConfig_control.load_rafts():    
-        print(raftConfig_control.lastError)
-    else:    
-        raftConfig_control.show_rafts()
-    #dashboard_view.show()    
-    #raftConfig_view.show()
-    app.exec()
+
+    # --- Instanciar los controladores de las vistas ---
+    # Se usa el patrón de diseño MVC
+    raftCon = raftConfigController(raftConfig_view)
+    dashCon = dashBoardController(dashboard_view)
+
+    dashCon.view.show()
+    #if not raftCon.load_rafts():    
+        #print(raftCon.lastError)
+    #else:    
+        #raftCon.show_rafts()
+    
+    # --- Ejecutar la aplicación ---
+    result=app.exec()
+    print(cfg.APP_EXIT_MESSAGE.format(result))
+    sys.exit(result)

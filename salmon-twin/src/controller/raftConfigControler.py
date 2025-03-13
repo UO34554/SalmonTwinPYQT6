@@ -11,6 +11,7 @@ from PySide6.QtCore import QStringListModel
 from PySide6.QtWidgets import QMessageBox
 from PySide6.QtGui import QFont
 
+# Clase controladora de la vista de configuración de balsas
 class raftConfigController:
     def __init__(self,view):
         self.rafts = []        
