@@ -9,6 +9,7 @@ import os
 from  model.seaRaft import seaRaft
 from PySide6.QtCore import QStringListModel
 from PySide6.QtWidgets import QMessageBox
+from PySide6.QtGui import QFont
 
 class raftConfigController:
     def __init__(self,view):
@@ -36,6 +37,9 @@ class raftConfigController:
         self.clear_view()
         # Deshabilitar el botón de eliminar
         self.view.removeRaft.setEnabled(False)
+        # Aplicar tipo de letra a los items de la lista
+        font = QFont("Segoe UI", 12, QFont.Bold)
+        self.view.listView.setFont(font)
 
     # --- Eventos de la vista ---
     # Manejador de eventos para clic en la lista

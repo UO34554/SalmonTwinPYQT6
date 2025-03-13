@@ -133,6 +133,12 @@ QFrame {
             <height>0</height>
            </size>
           </property>
+          <property name="styleSheet">
+           <string notr="true">QListView::item {  
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 8px;
+}</string>
+          </property>
           <property name="resizeMode">
            <enum>QListView::ResizeMode::Adjust</enum>
           </property>
