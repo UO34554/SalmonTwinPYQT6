@@ -9,7 +9,7 @@ import os
 from  model.seaRaft import seaRaft
 from PySide6.QtCore import QStringListModel
 from PySide6.QtWidgets import QMessageBox
-from PySide6.QtGui import QFont, QAction
+from PySide6.QtGui import QFont
 
 # Clase controladora de la vista de configuración de balsas
 class raftConfigController:
@@ -22,21 +22,21 @@ class raftConfigController:
         # Asignar la vista a una propiedad privada de la clase
         self._view = view
 
-        # --- Conectar señales de la vista con manejadores de eventos ---
+        # --- Conectar señales de la vista con manejadores de eventos ---        
         # Conectar la señal de clic en un item de la lista con el método on_item_clicked
-        self._view.listView.clicked.connect(self.on_item_clicked)
+        self._view.listView.clicked.connect(self._on_item_clicked)
         # Conectar la señal de clic en el botón de guardar con el método save_raft
-        self._view.saveRaft.clicked.connect(self.on_saveRaft_clicked)
+        self._view.saveRaft.clicked.connect(self._on_saveRaft_clicked)
         # Conectar la se ñal de clic en el bóton de añadir con el método on_addRaft_clicked
-        self._view.addRaft.clicked.connect(self.on_addRaft_clicked)
+        self._view.addRaft.clicked.connect(self._on_addRaft_clicked)
         # Conectar la señal de clic en el botón de eliminar con el método remove_raft
-        self._view.removeRaft.clicked.connect(self.on_remove_raft)
+        self._view.removeRaft.clicked.connect(self._on_remove_raft)
 
         # --- Initialización de la vista ---
         # Rellena combobox con las regiones marítimas
         self._view.regions.addItems(self.get_sea_regions())
         # Limpiar la vista
-        self.clear_view()
+        self._clear_view()
         # Deshabilitar el botón de eliminar
         self._view.removeRaft.setEnabled(False)
         # Aplicar tipo de letra a los items de la lista
@@ -45,48 +45,49 @@ class raftConfigController:
 
     # --- Eventos de la vista ---
     # Mostrar la vista
-    def show(self):        
+    def show(self):
+        self._show_rafts()        
         self._view.show()
-
+    
     # Manejador de eventos para clic en la lista
-    def on_item_clicked(self, index):
+    def _on_item_clicked(self, index):
         # Obtener el índice de la lista
         item = index.data()
         # Obtener la balsa seleccionada
         raft = self.get_raft_by_name(item)
         # Mostrar la balsa en la vista
-        self.display_raft_details(raft)
+        self._display_raft_details(raft)
         # Habilitar el botón de eliminar
         self._view.removeRaft.setEnabled(True)
 
     # Manejador de eventos para clic en el botón de guardar
-    def on_saveRaft_clicked(self):
+    def _on_saveRaft_clicked(self):
         # Deshabilitar el botón de eliminar
         self._view.removeRaft.setEnabled(False)
-        self.save_raft()
+        self._save_raft()
 
     # Manejador de eventos para clic en el botón de añadir
-    def on_addRaft_clicked(self):
+    def _on_addRaft_clicked(self):
         # Deshabilitar el botón de eliminar
         self._view.removeRaft.setEnabled(False)
-        self.clear_view()
+        self._clear_view()
 
     # Manejador de eventos para clic en el botón de eliminar
-    def on_remove_raft(self):
+    def _on_remove_raft(self):
         # Deshabilitar el botón de eliminar
         self._view.removeRaft.setEnabled(False)
-        self.remove_raft()
+        self._remove_raft()
 
     # --- Métodos de la vista ---
     # Mostrar un mensaje de error
-    def show_error_message(self,msg):
+    def _show_error_message(self,msg):
         error_dialog = QMessageBox()
         error_dialog.setWindowTitle("Error")
         error_dialog.setText(msg)
         error_dialog.setIcon(QMessageBox.Critical)
         error_dialog.exec()
 
-    def show_question(self,tittle,question):
+    def _show_question(self,tittle,question):
         # Crea el cuadro de mensaje
         msg_box = QMessageBox()
         msg_box.setWindowTitle(tittle)
@@ -100,7 +101,7 @@ class raftConfigController:
 
         return msg_box.clickedButton() == yes_button        
 
-    def clear_view(self):
+    def _clear_view(self):
         self._view.id.setText('')
         self._view.name.setText('')
         self._view.regions.setCurrentIndex(0)
@@ -108,7 +109,7 @@ class raftConfigController:
         self._view.finalDate.setDate(datetime.today())
 
     # Muestra una balsa en la vista
-    def display_raft_details(self, raft:seaRaft):
+    def _display_raft_details(self, raft:seaRaft):
         if raft:
             self._view.id.setText(str(raft.getId()))
             self._view.name.setText(raft.getName())
@@ -123,7 +124,7 @@ class raftConfigController:
             self._view.finalDate.setDate(datetime.today())
 
     # Muestra las balsas en la vista
-    def show_rafts(self):
+    def _show_rafts(self):
         # Crear un modelo de lista
         model = QStringListModel()
         # Obtener la lista existente
@@ -134,16 +135,18 @@ class raftConfigController:
         model.setStringList(items)
         # Configurar el modelo en la vista
         self._view.listView.setModel(model)
-        # Mostrar la vista
-        self.show()        
 
     # --- Métodos de la lógica de negocio ---
     # Contar el número de balsas
     def count_rafts(self):
         return len(self.rafts)
+    
+    # Obtener los nombres de las balsas
+    def get_name_rafts(self):
+        return [raft.getName() for raft in self.rafts]
 
     # Guardar cambios en la balsa
-    def save_raft(self):
+    def _save_raft(self):
         # Obtener los datos de la vista
         id = self._view.id.text()
         name = self._view.name.text()
@@ -157,8 +160,8 @@ class raftConfigController:
         # Si la balsa no exite se pregunta si se quiere crear una nueva
         if raft is None:
             # Pregunta si quiere crear una balsa nueva
-            if not self.show_question('Crear nueva balsa', '¿Desea crear una nueva balsa?'):
-                self.clear_view()
+            if not self._show_question('Crear nueva balsa', '¿Desea crear una nueva balsa?'):
+                self._clear_view()
                 return
             else:
                 raft = seaRaft()
@@ -176,7 +179,7 @@ class raftConfigController:
                 # Mostrar el id en la vista
                 self._view.id.setText(str(raft.getId()))
                 if not name:
-                    self.show_error_message(cfg.RAFTS_NAME_ERROR_MESSAGE)
+                    self._show_error_message(cfg.RAFTS_NAME_ERROR_MESSAGE)
                     return
                 raft.setName(name)
                 raft.setSeaRegion(region)
@@ -186,45 +189,45 @@ class raftConfigController:
                 self.rafts.append(raft)
         else:        
             # Si la balsa existe se pregunta si se quiere sobreescribir
-            if not self.show_question('Sobreescribir balsa', '¿Desea sobreescribir la balsa existente?'):                                
+            if not self._show_question('Sobreescribir balsa', '¿Desea sobreescribir la balsa existente?'):                                
                 return             
             # Establecer los datos de la balsa        
             if not name:
-                self.show_error_message(cfg.RAFTS_NAME_ERROR_MESSAGE)
+                self._show_error_message(cfg.RAFTS_NAME_ERROR_MESSAGE)
                 return
             raft.setName(name)
             raft.setSeaRegion(region)
             raft.setStartDate(initialDate)
             raft.setEndDate(finalDate)
         # Guardar la lista de balsas
-        if not self.save_raft_list_data():
-            self.show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
+        if not self._save_raft_list_data():
+            self._show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
         else:
-            self.show_rafts()
+            self._show_rafts()
 
     # Eliminar una balsa
-    def remove_raft(self):
+    def _remove_raft(self):
          # Obtener la balsa seleccionada
         item = self._view.listView.currentIndex().data()
         if item is None:
-            self.show_error_message('Seleccione una balsa para eliminar.')
+            self._show_error_message('Seleccione una balsa para eliminar.')
             return
         # Obtener la balsa por su nombre
         raft = self.get_raft_by_name(item)   
         # Si la balsa no existe
         if raft is None:
-            self.show_error_message(cfg.RAFTS_ID_NOT_FOUND.format(id=id))
+            self._show_error_message(cfg.RAFTS_ID_NOT_FOUND.format(id=id))
             return
         # Pregrunta si se quiere eliminar la balsa
-        if not self.show_question('Eliminar balsa', '¿Desea eliminar la balsa seleccionada?'):
+        if not self._show_question('Eliminar balsa', '¿Desea eliminar la balsa seleccionada?'):
             return
         # Eliminar la balsa de la lista
         self.rafts.remove(raft)
         # Guardar la lista de balsas
-        if not self.save_raft_list_data():
-            self.show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
+        if not self._save_raft_list_data():
+            self._show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
         else:
-            self.show_rafts()
+            self._show_rafts()
 
     # Devuelve balsa por su ID
     def get_raft_by_id(self, id:int)->seaRaft:
@@ -277,11 +280,11 @@ class raftConfigController:
             self.rafts = []
             
             # Crear un archivo de configuración vacío
-            self.save_empty_config()
+            self._save_empty_config()
             return True
 
     # Guarda una configuración vacía para inicializar el archivo
-    def save_empty_config(self):        
+    def _save_empty_config(self):        
         try:
             os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
             with open(self.config_file, 'w', encoding='utf-8') as f:
@@ -291,7 +294,7 @@ class raftConfigController:
             self.lastError = cfg.RAFTS_EMPTY_CONFIG_ERROR_MESSAGE.format(error=str(e))    
 
     # Guarda la lista de balsas en el archivo de configur
-    def save_raft_list_data(self)->bool:        
+    def _save_raft_list_data(self)->bool:        
         try:
             # Convertir las balsas a un diccionario
             raft_data = [raft.to_dict() for raft in self.rafts]

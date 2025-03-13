@@ -21,7 +21,13 @@ CONFIG_DIR = os.path.join(BASE_DIR, "..", "config")
 UI_DASHBOARD_FILE = os.path.join(BASE_DIR, "ui", "dashboard.ui")
 UI_DASHBOARD_FILE_NOT_FOUND_MESSAGE = "No se encontró el archivo de interfaz de usuario en {0}"
 
-#--- Rutas específicas de configuración
+#--- Datos de configuración de panel de mando
+DASHBOARD_SELECT_RAFT_MESSAGE = "Seleccionar balsa marina"
+DASHBOARD_LIST_TITLE = "Seleccionar"
+DASHBOARD_SELECT_RAFT_ERORR_MESSAGE = "Error al seleccionar la balsa marina"
+DASHBOARD_RAFT_SELECTED_MESSAGE = "Datos de la balsa marina: {0}"
+
+#--- Datos de configuración de balsas marinas
 RAFTS_CONFIG_FILE = os.path.join(CONFIG_DIR, "rafts.json")
 UI_RAFTCONFIG_FILE = os.path.join(BASE_DIR, "ui", "raftConfig.ui")
 RAFTS_LOADED_MESSAGE = "Se cargaron {count} balsas marinas."

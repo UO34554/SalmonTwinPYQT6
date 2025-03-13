@@ -34,7 +34,7 @@ if __name__ == "__main__":
     dashCon = dashBoardController(dashboard_view,raftCon)
 
     # --- Mostrar la vista principal ---
-    dashCon.show() 
+    dashCon.show()    
     
     # --- Ejecutar la aplicación ---
     result=app.exec()
