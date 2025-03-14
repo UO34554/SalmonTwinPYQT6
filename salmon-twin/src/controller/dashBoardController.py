@@ -2,10 +2,11 @@
 @author: Pedro López Treitiño
 Gestor unificado de balsas marinas para el sistema Salmon Twin
 """
-from PySide6.QtWidgets import QLabel, QDialog, QFileDialog
+from PySide6.QtWidgets import QLabel, QDialog, QFileDialog, QVBoxLayout, QHBoxLayout, QGraphicsView, QGraphicsScene
 import config as cfg
 from model.seaTemperature import DataTemperature
 from utility.utility import OptionsDialog, auxTools, DataLoader
+import pyqtgraph as pg
 
 # Controlodador de la vista de dashboard
 class dashBoardController:
@@ -19,7 +20,7 @@ class dashBoardController:
         # --- Inicialización de la vista ---
         # Crear un QLabel para el mensaje de estado
         self.label_estado = QLabel()
-        self._view.statusbar.addPermanentWidget(self.label_estado)         
+        self._view.statusbar.addPermanentWidget(self.label_estado)
         # Cargar las balsas marinas
         self.load_rafts_from_controller()
 
@@ -71,7 +72,33 @@ class dashBoardController:
     def draw_raft(self,raftName):
         # Mostrar mensaje temporal
         self._view.statusbar.showMessage(cfg.DASHBOARD_RAFT_SELECTED_MESSAGE.format(raftName))
-        pass
+        self.draw_graph(0,0)
+        self.draw_graph(0,1)
+        self.draw_graph(0,2)
+        self.draw_graph(1,0)
+        self.draw_graph(1,1)
+        self.draw_graph(1,2)
+        self.draw_graph(2,0)
+        self.draw_graph(2,1)
+        self.draw_graph(2,2)
+
+    def draw_graph(self,i,j):
+        # Crear un PlotItem para representar la gráfica
+        plot_widget = pg.PlotWidget(title="Serie Temporal")
+        plot_widget.setLabels(left="Valor", bottom="Tiempo")
+        plot_widget.showGrid(x=True, y=True)
+        plot_widget.setBackground((0, 0, 0, 140))        
+
+        # Agregar datos al gráfico
+        x = [1, 2, 3, 4, 5]
+        y = [20, 30, 25, 35, 40]
+        plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2))
+
+        # Ajustar los rangos de los ejes
+        plot_widget.setXRange(0, 10, padding=0.1)
+        plot_widget.setYRange(10, 50, padding=0.1)        
+        
+        self._view.centralwidget.layout().addWidget(plot_widget,i,j)
 
     # Cargar las balsas marinas
     def load_rafts_from_controller(self):        
