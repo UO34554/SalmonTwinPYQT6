@@ -2,8 +2,10 @@
 @author: Pedro López Treitiño
 Gestor unificado de balsas marinas para el sistema Salmon Twin
 """
-from PySide6.QtWidgets import QLabel,QDialog, QVBoxLayout, QPushButton, QListWidget
+from PySide6.QtWidgets import QLabel, QDialog, QFileDialog
 import config as cfg
+from model.seaTemperature import DataTemperature
+from utility.utility import OptionsDialog, auxTools, DataLoader
 
 # Controlodador de la vista de dashboard
 class dashBoardController:
@@ -11,6 +13,8 @@ class dashBoardController:
         self._view = view        
         self.lastError = None
         self.raftCon = raftController
+        self.tempModel = DataTemperature()
+        self.dataLoader = DataLoader()
 
         # --- Inicialización de la vista ---
         # Crear un QLabel para el mensaje de estado
@@ -21,7 +25,8 @@ class dashBoardController:
 
         # --- Conectar señales de la vista con manejadores de eventos ---
         self._view.actionConfigurar.triggered.connect(self.on_raft_config)
-        self._view.actionVer.triggered.connect(self.on_raft_view)        
+        self._view.actionVer.triggered.connect(self.on_raft_view)
+        self._view.actionCSV.triggered.connect(self.on_temperature_load_csv)        
     
     # --- Eventos de la vista ---
     def show(self):
@@ -35,6 +40,8 @@ class dashBoardController:
         data = self.raftCon.get_name_rafts()
         option = self.aux_list_dialog(data)
         if option:
+            # Actualizar el mensaje de estado permanente
+            self.label_estado.setText(cfg.RAFTS_LOADED_MESSAGE.format(count=self.raftCon.count_rafts()))
             self.draw_raft(option)
         else:
             # Mostrar mensaje de error temporal
@@ -44,6 +51,21 @@ class dashBoardController:
         self.raftCon.show()
         # Actualizar el mensaje de estado permanente
         self.label_estado.setText(cfg.RAFTS_LOADED_MESSAGE.format(count=self.raftCon.count_rafts()))
+
+    def on_temperature_load_csv(self):
+        # Cargar la temperatura
+        options = QFileDialog.Options()
+        file_name = QFileDialog.getOpenFileName(
+            None,
+            cfg.DASHBOARD_LOAD_FILE_MSG,
+            "",
+            "CSV Files (*.csv)",
+            options=options
+            )
+        if self.load_data_from_file("csv", file_name[0], ';'):            
+            auxTools.show_info_dialog(cfg.DASHBOARD_LOAD_TEMP_FILE_SUCCESS)
+        else:
+            auxTools.show_error_message(cfg.DASHBOARD_LOAD_TEMP_FILE_ERROR)
 
     # --- Métodos de la lógica de negocio
     def draw_raft(self,raftName):
@@ -58,29 +80,27 @@ class dashBoardController:
 
     # Diálogo auxiliar para seleccionar una opción de una lista
     def aux_list_dialog(self, data):
-        dialog = OptionsDialog(data)        
+        dialog = OptionsDialog(data,cfg.DASHBOARD_SELECT_RAFT_MESSAGE,cfg.DASHBOARD_LIST_TITLE)        
         if dialog.exec() == QDialog.Accepted:
             return dialog.get_selected_option()
-            
-
-# Diálogo de opciones auxiliar
-class OptionsDialog(QDialog):
-    def __init__(self, options): 
-        super().__init__()       
-        self.setWindowTitle(cfg.DASHBOARD_SELECT_RAFT_MESSAGE)
-        layout = QVBoxLayout(self)
-        self.list_widget = QListWidget(self)
-        self.list_widget.addItems(options)
-        layout.addWidget(self.list_widget)
-        self.button_box = QVBoxLayout()
-        self.select_button = QPushButton(cfg.DASHBOARD_LIST_TITLE, self)
-        self.button_box.addWidget(self.select_button)
-        layout.addLayout(self.button_box)
-        self.select_button.clicked.connect(self.accept)
-
-    def get_selected_option(self):
-        selected_items = self.list_widget.selectedItems()
-        if selected_items:
-            return selected_items[0].text()
-        return None    
+        
+    # Método para cargar datos de un archivo
+    def load_data_from_file(self, file_type, filepath, separator):
+        # Cargar los datos de temperatura desde un archivo CSV
+        if file_type == "csv":            
+                if self.dataLoader.load_from_csv(filepath, separator):
+                    if self.tempModel.parseTemperature(self.dataLoader.getData()):
+                        return True
+                    else:
+                        self.lastError = cfg.TEMPERATURE_PARSE_ERROR+ ":" + filepath
+                        return False
+                else:
+                    self.lastError = self.dataLoader.lastError + ":" + filepath
+                    return False
+        elif file_type == "json":
+            # Implementar la carga de datos desde un archivo JSON
+            pass
+        elif file_type == "excel":
+            # Implementar la carga de datos desde un archivo Excel 
+            pass    
     

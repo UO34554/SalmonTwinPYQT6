@@ -5,6 +5,7 @@ APP_NAME = "SalmonTwin"
 APP_VERSION = "0.1"
 APP_START_MESSAGE = "Iniciando {0} Versión {1}".format(APP_NAME, APP_VERSION)
 APP_EXIT_MESSAGE = "Saliendo de la aplicación {0} con código de salida {1}".format(APP_NAME, "{0}")
+APP_ERROR_MESSAGE = "Error no controlado de la aplicación: {0}"
 
 #--- Directorio base de la aplicación (asumiendo que este archivo está en src/)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -26,6 +27,13 @@ DASHBOARD_SELECT_RAFT_MESSAGE = "Seleccionar balsa marina"
 DASHBOARD_LIST_TITLE = "Seleccionar"
 DASHBOARD_SELECT_RAFT_ERORR_MESSAGE = "Error al seleccionar la balsa marina"
 DASHBOARD_RAFT_SELECTED_MESSAGE = "Datos de la balsa marina: {0}"
+DASHBOARD_LOAD_TEMP_FILE_SUCCESS = "Datos de temperatura cargados correctamente."
+DASHBOARD_LOAD_TEMP_FILE_ERROR = "Error al cargar los datos de temperatura."
+DASHBOARD_LOAD_FILE_MSG = "Cargar archivo de datos de temperatura"
+
+#--- Datos de configuración de utilidades
+UTILITY_DATA_LOAD_FILE_NOT_FOUND_MESSAGE = "Error al cargar los datos: archivo no encontrado."
+UTILITY_DATA_LOAD_EXCEPTION_MENSSAGE = "Error al cargar los datos: "
 
 #--- Datos de configuración de balsas marinas
 RAFTS_CONFIG_FILE = os.path.join(CONFIG_DIR, "rafts.json")
@@ -40,8 +48,9 @@ RAFTS_ID_NOT_FOUND = "La balsa con id={id} no existe"
 RAFTS_SAVE_ERROR_MESSAGE = "Error al guardar los datos de la balsa marina: {error}"
 RAFTS_NAME_ERROR_MESSAGE = "El nombre de la balsa marina no puede estar vacío."
 
-#--- Cadenas para la clase de DataTemperature en data_temperature.py
-TEMPERATURE_PARSE_ERROR = "Error de parsear al procesar los datos de temperatura."
+#--- Cadenas para el modelo de temperatura marina en seaTemperature.py
+PARSER_ERROR_COLUMN_NAME_NOT_FOUND = "No se encontró la columna {columnName} en los datos de temperatura."
+TEMPERATURE_PARSE_ERROR = "Error de parseo al procesar los datos de temperatura."
 FIT_TEMPERATURE_ERROR_REGION_NOT_FOUND = "El parámetro Region no se encuentra al predecir la temperatura."
 # Nombre de las columnas de los datos de temperatura
 TEMP_COLUMN_NAMES = [
@@ -73,7 +82,7 @@ SWEDISH_MONTH_NAMES = {
     'Des': '12'
 }
 
-# Configuración del log
+# Configuración del log (NO SE USA)
 LOG_FILENAME = os.path.join(BASE_DIR, "salmon_monitor.log")
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"

@@ -6,9 +6,9 @@ from datetime import datetime
 import json
 import config as cfg
 import os
-from  model.seaRaft import seaRaft
+from model.seaRaft import seaRaft
+from utility.utility import auxTools
 from PySide6.QtCore import QStringListModel
-from PySide6.QtWidgets import QMessageBox
 from PySide6.QtGui import QFont
 
 # Clase controladora de la vista de configuración de balsas
@@ -79,28 +79,6 @@ class raftConfigController:
         self._remove_raft()
 
     # --- Métodos de la vista ---
-    # Mostrar un mensaje de error
-    def _show_error_message(self,msg):
-        error_dialog = QMessageBox()
-        error_dialog.setWindowTitle("Error")
-        error_dialog.setText(msg)
-        error_dialog.setIcon(QMessageBox.Critical)
-        error_dialog.exec()
-
-    def _show_question(self,tittle,question):
-        # Crea el cuadro de mensaje
-        msg_box = QMessageBox()
-        msg_box.setWindowTitle(tittle)
-        msg_box.setText(question)
-        msg_box.setIcon(QMessageBox.Question)        
-        # Añade los botones y cambia el texto
-        yes_button = msg_box.addButton('Sí', QMessageBox.YesRole)
-        msg_box.addButton('No', QMessageBox.NoRole)        
-        # Ejecuta el cuadro de diálogo y obtiene la respuesta
-        msg_box.exec()
-
-        return msg_box.clickedButton() == yes_button        
-
     def _clear_view(self):
         self._view.id.setText('')
         self._view.name.setText('')
@@ -160,7 +138,7 @@ class raftConfigController:
         # Si la balsa no exite se pregunta si se quiere crear una nueva
         if raft is None:
             # Pregunta si quiere crear una balsa nueva
-            if not self._show_question('Crear nueva balsa', '¿Desea crear una nueva balsa?'):
+            if not auxTools.show_question('Crear nueva balsa', '¿Desea crear una nueva balsa?'):
                 self._clear_view()
                 return
             else:
@@ -179,7 +157,7 @@ class raftConfigController:
                 # Mostrar el id en la vista
                 self._view.id.setText(str(raft.getId()))
                 if not name:
-                    self._show_error_message(cfg.RAFTS_NAME_ERROR_MESSAGE)
+                    auxTools.show_error_message(cfg.RAFTS_NAME_ERROR_MESSAGE)
                     return
                 raft.setName(name)
                 raft.setSeaRegion(region)
@@ -189,11 +167,11 @@ class raftConfigController:
                 self.rafts.append(raft)
         else:        
             # Si la balsa existe se pregunta si se quiere sobreescribir
-            if not self._show_question('Sobreescribir balsa', '¿Desea sobreescribir la balsa existente?'):                                
+            if not auxTools.show_question('Sobreescribir balsa', '¿Desea sobreescribir la balsa existente?'):                                
                 return             
             # Establecer los datos de la balsa        
             if not name:
-                self._show_error_message(cfg.RAFTS_NAME_ERROR_MESSAGE)
+                auxTools.show_error_message(cfg.RAFTS_NAME_ERROR_MESSAGE)
                 return
             raft.setName(name)
             raft.setSeaRegion(region)
@@ -201,7 +179,7 @@ class raftConfigController:
             raft.setEndDate(finalDate)
         # Guardar la lista de balsas
         if not self._save_raft_list_data():
-            self._show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
+            auxTools.show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
         else:
             self._show_rafts()
 
@@ -210,22 +188,22 @@ class raftConfigController:
          # Obtener la balsa seleccionada
         item = self._view.listView.currentIndex().data()
         if item is None:
-            self._show_error_message('Seleccione una balsa para eliminar.')
+            auxTools.show_error_message('Seleccione una balsa para eliminar.')
             return
         # Obtener la balsa por su nombre
         raft = self.get_raft_by_name(item)   
         # Si la balsa no existe
         if raft is None:
-            self._show_error_message(cfg.RAFTS_ID_NOT_FOUND.format(id=id))
+            auxTools.show_error_message(cfg.RAFTS_ID_NOT_FOUND.format(id=id))
             return
         # Pregrunta si se quiere eliminar la balsa
-        if not self._show_question('Eliminar balsa', '¿Desea eliminar la balsa seleccionada?'):
+        if not auxTools.show_question('Eliminar balsa', '¿Desea eliminar la balsa seleccionada?'):
             return
         # Eliminar la balsa de la lista
         self.rafts.remove(raft)
         # Guardar la lista de balsas
         if not self._save_raft_list_data():
-            self._show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
+            auxTools.show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
         else:
             self._show_rafts()
 

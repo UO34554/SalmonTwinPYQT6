@@ -89,7 +89,13 @@ QStatusBar {
     <property name="title">
      <string>Temperatura</string>
     </property>
-    <addaction name="actionCargar"/>
+    <widget class="QMenu" name="menuCargar">
+     <property name="title">
+      <string>Cargar</string>
+     </property>
+     <addaction name="actionCSV"/>
+    </widget>
+    <addaction name="menuCargar"/>
     <addaction name="separator"/>
     <addaction name="actionPredecir"/>
    </widget>
@@ -111,11 +117,6 @@ QStatusBar {
 }</string>
    </property>
   </widget>
-  <action name="actionCargar">
-   <property name="text">
-    <string>Cargar</string>
-   </property>
-  </action>
   <action name="actionPredecir">
    <property name="text">
     <string>Predecir</string>
@@ -129,6 +130,11 @@ QStatusBar {
   <action name="actionConfigurar">
    <property name="text">
     <string>Configurar</string>
+   </property>
+  </action>
+  <action name="actionCSV">
+   <property name="text">
+    <string>CSV</string>
    </property>
   </action>
  </widget>

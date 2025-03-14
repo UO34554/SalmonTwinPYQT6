@@ -1,5 +1,6 @@
 """
 @author: Pedro López Treitiño
+Gestor unificado de balsas marinas para el sistema Salmon Twin
 """
 from datetime import datetime
 import pandas as pd

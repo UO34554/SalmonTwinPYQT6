@@ -17,26 +17,32 @@ from controller.dashBoardController import dashBoardController
 import resources
 
 if __name__ == "__main__":
-    print(cfg.APP_START_MESSAGE)      
-    # --- Inicializar la aplicación ---
-    # sys.argv es una lista de argumentos pasados al script de Python
-    # no se utilizan en este caso
-    app = QtWidgets.QApplication(sys.argv)
+    result = 0
+    try:
+        print(cfg.APP_START_MESSAGE)      
+        # --- Inicializar la aplicación ---
+        # sys.argv es una lista de argumentos pasados al script de Python
+        # no se utilizan en este caso
+        app = QtWidgets.QApplication(sys.argv)
 
-    # --- Cargar los archivos de UI ---
-    loader = QUiLoader()        
-    dashboard_view = loader.load(cfg.UI_DASHBOARD_FILE, None)
-    raftConfig_view = loader.load(cfg.UI_RAFTCONFIG_FILE, None)
+        # --- Cargar los archivos de UI ---
+        loader = QUiLoader()        
+        dashboard_view = loader.load(cfg.UI_DASHBOARD_FILE, None)
+        raftConfig_view = loader.load(cfg.UI_RAFTCONFIG_FILE, None)
 
-    # --- Instanciar los controladores de las vistas ---
-    # Se usa el patrón de diseño MVC
-    raftCon = raftConfigController(raftConfig_view)
-    dashCon = dashBoardController(dashboard_view,raftCon)
+        # --- Instanciar los controladores de las vistas ---
+        # Se usa el patrón de diseño MVC
+        raftCon = raftConfigController(raftConfig_view)
+        dashCon = dashBoardController(dashboard_view,raftCon)
 
-    # --- Mostrar la vista principal ---
-    dashCon.show()    
+        # --- Mostrar la vista principal ---    
+        dashCon.show()
+
+        # --- Ejecutar la aplicación ---
+        result=app.exec()
+        print(cfg.APP_EXIT_MESSAGE.format(result))
+        sys.exit(result)
+    except Exception as e:
+        print(cfg.APP_ERROR_MESSAGE.format(e))
     
-    # --- Ejecutar la aplicación ---
-    result=app.exec()
-    print(cfg.APP_EXIT_MESSAGE.format(result))
-    sys.exit(result)
+        
