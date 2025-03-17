@@ -2,16 +2,16 @@
 @author: Pedro López Treitiño
 Gestor unificado de balsas marinas para el sistema Salmon Twin
 """
-from PySide6.QtWidgets import QLabel, QDialog, QFileDialog, QGraphicsView, QGraphicsScene, QWidget
-from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QLabel, QDialog, QFileDialog, QGraphicsView, QGraphicsScene, QWidget, QVBoxLayout
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPen, QBrush, QColor
-import config as cfg
-from model.seaTemperature import DataTemperature
-from utility.utility import OptionsDialog, auxTools, DataLoader
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 import numpy as np
 import random
+import config as cfg
+from model.seaTemperature import DataTemperature
+from utility.utility import OptionsDialog, auxTools, DataLoader
 
 # Controlodador de la vista de dashboard
 class dashBoardController:
@@ -28,6 +28,9 @@ class dashBoardController:
         self._view.statusbar.addPermanentWidget(self.label_estado)
         # Cargar las balsas marinas
         self.load_rafts_from_controller()
+        self.fish_items = []
+        self.fish_count = 50
+        self.timer = QTimer()
 
         # --- Conectar señales de la vista con manejadores de eventos ---
         self._view.actionConfigurar.triggered.connect(self.on_raft_config)
@@ -48,7 +51,7 @@ class dashBoardController:
         if option:
             # Actualizar el mensaje de estado permanente
             self.label_estado.setText(cfg.RAFTS_LOADED_MESSAGE.format(count=self.raftCon.count_rafts()))
-            self.draw_raft(option)
+            self._draw_raft(option)
         else:
             # Mostrar mensaje de error temporal
             self._view.statusbar.showMessage(cfg.DASHBOARD_SELECT_RAFT_ERORR_MESSAGE)            
@@ -74,20 +77,23 @@ class dashBoardController:
             auxTools.show_error_message(cfg.DASHBOARD_LOAD_TEMP_FILE_ERROR)
 
     # --- Métodos de la lógica de negocio
-    def draw_raft(self,raftName):
+    def _draw_raft(self,raftName):
         # Mostrar mensaje temporal
         self._view.statusbar.showMessage(cfg.DASHBOARD_RAFT_SELECTED_MESSAGE.format(raftName))        
-        self.draw_graph(0,1)
-        self.draw_graph(1,1)
-        self.draw_graph(2,1)
-        self.draw_schematic(0,0)
-        self.draw_infopanel(1,0)
-        self.draw_schematic_3d(2,0)
-        
-    def draw_schematic_3d(self,pos_i,pos_j):
+        self._draw_graph(0,1)
+        self._draw_graph(1,1)
+        self._draw_graph(2,1)
+        self._draw_schematic(0,0)
+        self._draw_infopanel(1,0)
+        self._draw_schematic_3d(2,0)
+
+    # --- Grafico 3d ---   
+    def _draw_schematic_3d(self,pos_i,pos_j):
         # Crear un widget 3D
         view = gl.GLViewWidget()
-        view.setBackgroundColor((55, 43, 38, 0))      
+        view.setBackgroundColor((55, 43, 38, 0))
+        # Configurar el rango inicial de la cámara
+        view.setCameraPosition(distance=50)     
 
         # Agregar una cuadrícula para referencia
         grid = gl.GLGridItem()
@@ -95,17 +101,17 @@ class dashBoardController:
         view.addItem(grid)
 
         # Dibujar la estructura circular de la balsa
-        self.create_balsa(view)
+        self._create_balsa(view)
         # Dibujar las redes bajo el agua
-        self.create_nets(view)
+        self._create_nets(view)
         # Dibujar flotadores alrededor de la balsa
-        self.create_flotadores(view)
+        self._create_flotadores(view)
         # Dibujar peces dentro de la red
-        self.create_fish(view)
+        self._create_fish(view)
         # Mostrar el widget 3D
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
 
-    def create_balsa(self,view):
+    def _create_balsa(self,view):
         # Estructura de la balsa (círculo)
         radius = 10
         theta = np.linspace(0, 2 * np.pi, 100)
@@ -117,7 +123,7 @@ class dashBoardController:
         balsa = gl.GLLinePlotItem(pos=np.array([x, y, z]).T, color=(1, 0, 0, 1), width=2)
         view.addItem(balsa)
 
-    def create_nets(self,view):
+    def _create_nets(self,view):
         # Red (cilindro bajo la balsa)
         radius = 10
         height = 5
@@ -138,7 +144,7 @@ class dashBoardController:
         bottom = gl.GLLinePlotItem(pos=bottom_circle, color=(0, 0, 1, 0.5), width=1)
         view.addItem(bottom)
 
-    def create_flotadores(self,view):
+    def _create_flotadores(self,view):
         # Flotadores (esferas distribuidas en el círculo)
         radius = 10
         flotador_positions = 8
@@ -148,26 +154,68 @@ class dashBoardController:
             y = radius * np.sin(angle)
             z = 0
             sphere = gl.GLScatterPlotItem(pos=np.array([[x, y, z]]), size=20, color=(0, 1, 0, 1))
-            view.addItem(sphere)
+            view.addItem(sphere)    
 
-    def create_fish(self,view):
+    def _create_fish(self, view):
         # Crear peces (esferas pequeñas dentro de la red)
-        fish_count = 50
-        for _ in range(fish_count):
-            x = random.uniform(-7, 7)  # Coordenadas X aleatorias dentro de la red
-            y = random.uniform(-7, 7)  # Coordenadas Y aleatorias dentro de la red
-            z = random.uniform(-5, 0)  # Coordenadas Z aleatorias dentro de la red
+        self.fish_items = []
+        self.fish_positions = [] 
+        self.fish_count = 150  # Número de peces
+        for _ in range(self.fish_count):
+            x = random.uniform(-7, 7)
+            y = random.uniform(-7, 7)
+            z = random.uniform(-5, 0)
             fish = gl.GLScatterPlotItem(pos=np.array([[x, y, z]]), size=5, color=(1, 1, 0, 1))
-            view.addItem(fish)
+            self.fish_items.append(fish)
+            self.fish_positions.append([x, y, z])
+            view.addItem(fish)            
+        # Configurar un temporizador para animar los peces
+        self.timer.stop()        
+        self.timer.timeout.connect(self._update_fish_positions)
+        # Actualizar la posición de los peces cada 500 ms
+        self.timer.start(500)  
 
-    def draw_schematic(self,pos_i,pos_j):
+    def _update_fish_positions(self):
+        for i, fish in enumerate(self.fish_items):
+            # Obtener la posición actual
+            current_pos = self.fish_positions[i]
+            x, y, z = current_pos
+
+            # Calcular pequeños desplazamientos (deltas)
+            delta_x = random.uniform(-0.1, 0.1)  # Movimiento suave en X
+            delta_y = random.uniform(-0.1, 0.1)  # Movimiento suave en Y
+            delta_z = random.uniform(-0.1, 0.1)  # Movimiento suave en Z
+
+            # Limitar posiciones dentro de los límites de la red
+            new_x = np.clip(x + delta_x, -7, 7)
+            new_y = np.clip(y + delta_y, -7, 7)
+            new_z = np.clip(z + delta_z, -5, 0)
+
+            # Actualizar la posición en la lista
+            self.fish_positions[i] = [new_x, new_y, new_z]
+
+            # Actualizar la posición del pez
+            fish.setData(pos=np.array([[new_x, new_y, new_z]]))
+    # --- Fin Grafico 3d ---   
+
+    # --- Grafico 2d ---
+    def _draw_schematic(self,pos_i,pos_j):
         # Crear un QGraphicsView para mostrar la información de la balsa
         view = QGraphicsView()
-        scene = QGraphicsScene()
+        scene = QGraphicsScene()       
+
+        # Aplicar un estilo con fondo semitransparente
+        view.setStyleSheet("""
+            QGraphicsView {
+                background-color: rgba(200, 200, 200, 150); /* Gris claro semitransparente */
+                border: 1px solid black; /* Borde negro opcional */
+            }
+        """)
+
         view.setScene(scene)
 
         # Dimensiones y colores
-        cage_radius = 100
+        cage_radius = 70
         net_color = QColor(100, 100, 255, 150)  # Azul semitransparente
         float_color = QColor(200, 200, 200)      # Gris claro
         support_color = QColor(150, 150, 150)    # Gris oscuro
@@ -215,29 +263,49 @@ class dashBoardController:
             anchor.setToolTip("Anclaje")
         
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
+    # --- Fin Grafico 2d ---
 
+    # Datos de la balsa
+    def _draw_infopanel(self,pos_i,pos_j):
+        # Crear un widget para mostrar información de la balsa
+        view = QWidget()
+        # Crear un layout vertical para organizar los QLabel
+        layout = QVBoxLayout()
+        view.setLayout(layout)
+        # Mostrar información de la balsa
+        lName = QLabel("Balsa Marítima")
+        lRegion = QLabel("Balsa 1")
+        lLocation = QLabel("Ubicación: 12.3456, -78.9012")
+        lDepth = QLabel("Profundidad: 10 m")
+        lTemperature = QLabel("Temperatura: 20°C")
 
-    def draw_infopanel(self,pos_i,pos_j):
-        # Crear un QGraphicsView para mostrar la información de la balsa
-        view = QGraphicsView()
-        scene = QGraphicsScene()
-        view.setScene(scene)
+        # Estilo para los QLabel
+        label_style = """
+            QLabel {
+                font-size: 18px; /* Tamaño de la letra */
+                background-color: rgba(200, 200, 200, 150); /* Fondo semitransparente */
+                color: black; /* Color del texto */
+                border: 1px solid gray; /* Opcional: borde */
+                padding: 5px; /* Margen interno */
+            }
+        """
+        lName.setStyleSheet(label_style)
+        lRegion.setStyleSheet(label_style)
+        lLocation.setStyleSheet(label_style)
+        lDepth.setStyleSheet(label_style)
+        lTemperature.setStyleSheet(label_style)
 
-        # Dibujar un rectángulo para representar la balsa
-        pen = QPen(Qt.black, 2)
-        scene.addRect(50, 50, 200, 150, pen)  # x, y, ancho, alto
+        # Añadir los QLabel al layout
+        layout.addWidget(lName)
+        layout.addWidget(lRegion)
+        layout.addWidget(lLocation)
+        layout.addWidget(lDepth)
+        layout.addWidget(lTemperature)       
 
-        # Dibujar líneas para representar redes
-        scene.addLine(50, 125, 250, 125, pen)  # Línea horizontal en el centro
-        scene.addLine(150, 50, 150, 200, pen)  # Línea vertical en el centro
-
-        # Dibujar un flotador como elipse
-        scene.addEllipse(40, 40, 20, 20, pen)  # x, y, ancho, alto
-
-        #view.show()
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
 
-    def draw_graph(self,pos_i,pos_j):
+    # Graficar una serie temporal
+    def _draw_graph(self,pos_i,pos_j):
         # Crear un PlotItem para representar la gráfica
         plot_widget = pg.PlotWidget(title="Serie Temporal")
         plot_widget.setLabels(left="Valor", bottom="Tiempo")
