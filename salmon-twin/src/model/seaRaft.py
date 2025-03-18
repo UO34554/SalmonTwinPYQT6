@@ -9,61 +9,61 @@ import pandas as pd
 class seaRaft:        
     
     def __init__(self, id=None, name=None, seaRegion=None, startDate=None, endDate=None, temperature=None):
-        self.id = id
-        self.name = name
-        self.seaRegion = seaRegion
-        self.startDate = startDate
-        self.endDate = endDate        
-        self.temperature = temperature
+        self._id = id
+        self._name = name
+        self._seaRegion = seaRegion
+        self._startDate = startDate
+        self._endDate = endDate        
+        self._temperature = temperature
 
     # --- Setters ---
     def setId(self, id:int):
-        self.id = int(id)
+        self._id = int(id)
 
     def setName(self, name:str):
-        self.name = str(name)
+        self._name = str(name)
 
     def setSeaRegion(self, seaRegion:str):
-        self.seaRegion = str(seaRegion)
+        self._seaRegion = str(seaRegion)
 
     def setStartDate(self, startDate:datetime):
         # Convertir la fecha a las 00:00:00
-        self.startDate = datetime.combine(startDate, datetime.min.time())
+        self._startDate = datetime.combine(startDate, datetime.min.time())
 
     def setEndDate(self, endDate:datetime):
         # Convertir la fecha a las 00:00:00
-        self.endDate = datetime.combine(endDate, datetime.min.time())
+        self._endDate = datetime.combine(endDate, datetime.min.time())
         
     def setTemperature(self, temperature:pd.DataFrame):
-        self.temperature = pd.DataFrame(temperature)
+        self._temperature = pd.DataFrame(temperature)
 
     # --- Getters ---
     def getId(self)->int:
-        return int(self.id)
+        return int(self._id)
 
     def getName(self)->str:
-        return str(self.name)
+        return str(self._name)
 
     def getSeaRegion(self)->str:
-        return str(self.seaRegion)
+        return str(self._seaRegion)
     
     def getStartDate(self)->datetime:
-        return self.startDate.date()
+        return self._startDate.date()
     
     def getEndDate(self)->datetime:
-        return self.endDate.date()
+        return self._endDate.date()
     
     def getTemperature(self)->pd.DataFrame:
-        return pd.DataFrame(self.temperature)
+        return pd.DataFrame(self._temperature)
     
     # Convierte los datos de la balsa a un diccionario para serialización
     def to_dict(self):
         return {
-            'id': self.id,
-            'name': self.name,
-            'seaRegion': self.seaRegion,
-            'startDate': self.startDate.isoformat(),
-            'endDate': self.endDate.isoformat()
+            'id': self._id,
+            'name': self._name,
+            'seaRegion': self._seaRegion,
+            'startDate': self._startDate.isoformat(),
+            'endDate': self._endDate.isoformat()
             # No incluimos temperature aquí ya que es un DataFrame y no es serializable directamente
         }
     

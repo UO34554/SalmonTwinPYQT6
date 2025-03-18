@@ -8,8 +8,10 @@ from PySide6.QtGui import QPen, QBrush, QColor
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 import numpy as np
+import pandas as pd
 import random
 import config as cfg
+import locale
 from model.seaTemperature import DataTemperature
 from utility.utility import OptionsDialog, auxTools, DataLoader
 
@@ -21,6 +23,8 @@ class dashBoardController:
         self.raftCon = raftController
         self.tempModel = DataTemperature()
         self.dataLoader = DataLoader()
+        # Configura el idioma a español (España) para las fechas
+        locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
 
         # --- Inicialización de la vista ---
         # Crear un QLabel para el mensaje de estado
@@ -79,12 +83,19 @@ class dashBoardController:
     # --- Métodos de la lógica de negocio
     def _draw_raft(self,raftName):
         # Mostrar mensaje temporal
-        self._view.statusbar.showMessage(cfg.DASHBOARD_RAFT_SELECTED_MESSAGE.format(raftName))        
+        self._view.statusbar.showMessage(cfg.DASHBOARD_RAFT_SELECTED_MESSAGE.format(raftName))
+        # Buscar la balsa seleccionada
+        raft = self.raftCon.get_raft_by_name(raftName)
+        #Borrar todos los widgets del layout
+        for i in reversed(range(self._view.centralwidget.layout().count())): 
+            self._view.centralwidget.layout().itemAt(i).widget().deleteLater()
+        
+        # Dibujar la balsa
         self._draw_graph(0,1)
         self._draw_graph(1,1)
         self._draw_graph(2,1)
         self._draw_schematic(0,0)
-        self._draw_infopanel(1,0)
+        self._draw_infopanel(1,0,raft)
         self._draw_schematic_3d(2,0)
 
     # --- Grafico 3d ---   
@@ -93,13 +104,11 @@ class dashBoardController:
         view = gl.GLViewWidget()
         view.setBackgroundColor((55, 43, 38, 0))
         # Configurar el rango inicial de la cámara
-        view.setCameraPosition(distance=50)     
-
+        view.setCameraPosition(distance=50)
         # Agregar una cuadrícula para referencia
         grid = gl.GLGridItem()
         grid.scale(1, 1, 1)
         view.addItem(grid)
-
         # Dibujar la estructura circular de la balsa
         self._create_balsa(view)
         # Dibujar las redes bajo el agua
@@ -266,18 +275,29 @@ class dashBoardController:
     # --- Fin Grafico 2d ---
 
     # Datos de la balsa
-    def _draw_infopanel(self,pos_i,pos_j):
+    def _draw_infopanel(self,pos_i,pos_j,raf):
         # Crear un widget para mostrar información de la balsa
         view = QWidget()
         # Crear un layout vertical para organizar los QLabel
         layout = QVBoxLayout()
         view.setLayout(layout)
         # Mostrar información de la balsa
-        lName = QLabel("Balsa Marítima")
-        lRegion = QLabel("Balsa 1")
+        lName = QLabel(raf.getName())
+        lRegion = QLabel("Región del mar: {0}".format(raf.getSeaRegion()))
         lLocation = QLabel("Ubicación: 12.3456, -78.9012")
         lDepth = QLabel("Profundidad: 10 m")
-        lTemperature = QLabel("Temperatura: 20°C")
+        # Mostrar las fechas de inicio y fin en formato de idioma castellano
+        # Formatear las fechas al idioma castellano
+        formatted_start_date = raf.getStartDate().strftime("%d de %B de %Y")
+        formatted_end_date = raf.getEndDate().strftime("%d de %B de %Y")
+        lFechas = QLabel("Fechas: {0} - {1}".format(formatted_start_date, formatted_end_date))
+        if raf.getTemperature().empty:
+            lTemperature = QLabel("Temperatura: No disponible")
+        else:
+            # Calcular la temperatura promedio
+            temp = np.mean(raf.getTemperature()['y'])
+            # Mostrar la temperatura promedio            
+            lTemperature = QLabel("Temperatura: {0:.2f} °C".format(temp))
 
         # Estilo para los QLabel
         label_style = """
@@ -293,6 +313,7 @@ class dashBoardController:
         lRegion.setStyleSheet(label_style)
         lLocation.setStyleSheet(label_style)
         lDepth.setStyleSheet(label_style)
+        lFechas.setStyleSheet(label_style)
         lTemperature.setStyleSheet(label_style)
 
         # Añadir los QLabel al layout
@@ -300,6 +321,7 @@ class dashBoardController:
         layout.addWidget(lRegion)
         layout.addWidget(lLocation)
         layout.addWidget(lDepth)
+        layout.addWidget(lFechas)
         layout.addWidget(lTemperature)       
 
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
