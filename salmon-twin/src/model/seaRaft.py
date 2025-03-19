@@ -79,12 +79,12 @@ class seaRaft:
             'temperature': temperature_data
         }
     
-    # Convierte los datos de la balsa a un diccionario para serialización
+    # Crea una instancia de seaRaft a partir de un diccionario
     @staticmethod
     def from_dict(data):
         lastError = None
         try:
-            # Convertir las fechas de ISO formato si existen
+            # Convertir las fechas de formato ISO si existen
             start_date = None
             end_date = None
 
@@ -102,14 +102,25 @@ class seaRaft:
                     lastError = f"Error al convertir fecha de fin: {e}"
                     return None, lastError
 
+            # Reconstruir temperature como un DataFrame si existe
+            temperature = None
+            if 'temperature' in data and data['temperature']:
+                try:
+                    import pandas as pd
+                    temperature = pd.DataFrame(data['temperature'])
+                except Exception as e:
+                    lastError = f"Error al reconstruir temperature: {e}"
+                    return None, lastError
+
+            # Crear el objeto seaRaft
             return seaRaft(
                 id=data.get('id'),
                 name=data.get('name'),
                 seaRegion=data.get('seaRegion'),
                 startDate=start_date,
                 endDate=end_date,
-                temperature=None  # La temperatura se cargará por separado
+                temperature=temperature
             ), lastError
         except Exception as e:
             lastError = f"Error al crear balsa desde diccionario: {e}"
-            return None, lastError
+        return None, lastError

@@ -14,6 +14,7 @@ import config as cfg
 import locale
 from model.seaTemperature import DataTemperature
 from utility.utility import OptionsDialog, auxTools, DataLoader
+from datetime import datetime
 
 # Controlodador de la vista de dashboard
 class dashBoardController:
@@ -108,9 +109,9 @@ class dashBoardController:
         # Limpiar la vista
         self._clear_dashboard()        
         # Dibujar la balsa
-        self._draw_graph(0,1)
-        self._draw_graph(1,1)
-        self._draw_graph(2,1)
+        self._draw_graph_temperature(0,1,raft)
+        self._draw_graph_temperature(1,1,raft)
+        self._draw_graph_temperature(2,1,raft)
         self._draw_schematic(0,0)
         self._draw_infopanel(1,0,raft)
         self._draw_schematic_3d(2,0)
@@ -343,22 +344,48 @@ class dashBoardController:
 
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
 
+    # Formatear los ticks del eje X con el formato 'día/mes/año'
+    def _format_date(self, value):
+        date = datetime.fromtimestamp(value)
+        return date.strftime('%d/%m/%Y')
+
     # Graficar una serie temporal
-    def _draw_graph(self,pos_i,pos_j):
+    def _draw_graph_temperature(self,pos_i,pos_j,raft):
         # Crear un PlotItem para representar la gráfica
-        plot_widget = pg.PlotWidget(title="Serie Temporal")
-        plot_widget.setLabels(left="Valor", bottom="Tiempo")
+        plot_widget = pg.PlotWidget(title="Temperatura del mar en {0}".format(raft.getSeaRegion()))
+        plot_widget.setLabels(left="Grados ºC", bottom="Fechas")
+        # Cambiar el label del eje X de manera específica
+        plot_widget.getAxis('bottom').setLabel("Fechas", units=None)
         plot_widget.showGrid(x=True, y=True)
         plot_widget.setBackground((0, 0, 0, 140))        
 
-        # Agregar datos al gráfico
-        x = [1, 2, 3, 4, 5]
-        y = [20, 30, 25, 35, 40]
-        plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2))
+        # Agregar datos al gráfico si existen
+        if raft.getTemperature().empty:
+            # Mostrar una 'X' roja si no hay datos de temperatura
+            plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
+        else:
+            # Convertir la columna 'ds' a formato timestamp si no está ya en datetime
+            df_temperature = raft.getTemperature()
+            df_temperature['ds'] = pd.to_datetime(df_temperature['ds'], errors='coerce')
 
-        # Ajustar los rangos de los ejes
-        plot_widget.setXRange(0, 10, padding=0.1)
-        plot_widget.setYRange(10, 50, padding=0.1)        
+            # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
+            x = df_temperature['ds'].map(pd.Timestamp.timestamp)
+            y = df_temperature['y']            
+            
+            # Filtros dinámicos para los ticks
+            interval = max(1, len(x) // 7) 
+            ticks = [(x[i], self._format_date(x[i])) for i in range(0, len(x), interval)]
+
+            # Personalizar los ticks del eje X
+            axis = plot_widget.getAxis('bottom')
+            axis.setTicks([ticks])
+
+            # Graficar los datos de temperatura
+            plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2))
+
+            # Ajustar los rangos de los ejes de manera dinámica
+            plot_widget.setXRange(x.min(), x.max(), padding=0.1)
+            plot_widget.setYRange(y.min(), y.max(), padding=0.1)
         
         self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)
 
