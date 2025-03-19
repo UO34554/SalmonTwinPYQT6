@@ -58,13 +58,25 @@ class seaRaft:
     
     # Convierte los datos de la balsa a un diccionario para serialización
     def to_dict(self):
+        if self._temperature is not None:
+            # Asegurarse de que la columna 'ds' sea de tipo datetime
+            self._temperature['ds'] = pd.to_datetime(self._temperature['ds'], errors='coerce')
+
+            # Aplicar .isoformat() directamente a cada valor de la columna 'ds'
+            self._temperature['ds'] = self._temperature['ds'].apply(lambda x: x.isoformat() if pd.notnull(x) else None)
+
+            # Convertir a un formato serializable
+            temperature_data = self._temperature.to_dict(orient='records')
+        else:
+            temperature_data = None
+
         return {
             'id': self._id,
             'name': self._name,
             'seaRegion': self._seaRegion,
             'startDate': self._startDate.isoformat(),
-            'endDate': self._endDate.isoformat()
-            # No incluimos temperature aquí ya que es un DataFrame y no es serializable directamente
+            'endDate': self._endDate.isoformat(),
+            'temperature': temperature_data
         }
     
     # Convierte los datos de la balsa a un diccionario para serialización

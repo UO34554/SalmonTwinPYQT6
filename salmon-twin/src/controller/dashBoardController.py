@@ -23,9 +23,9 @@ class dashBoardController:
         self.raftCon = raftController
         self.tempModel = DataTemperature()
         self.dataLoader = DataLoader()
+        self.lastRaftName = None        
         # Configura el idioma a español (España) para las fechas
         locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
-
         # --- Inicialización de la vista ---
         # Crear un QLabel para el mensaje de estado
         self.label_estado = QLabel()
@@ -77,19 +77,36 @@ class dashBoardController:
             )
         if self.load_data_from_file("csv", file_name[0], ';'):            
             auxTools.show_info_dialog(cfg.DASHBOARD_LOAD_TEMP_FILE_SUCCESS)
+            self._save_raft_temperature()
         else:
             auxTools.show_error_message(cfg.DASHBOARD_LOAD_TEMP_FILE_ERROR)
 
     # --- Métodos de la lógica de negocio
+    def _save_raft_temperature(self):
+        # Buscar la balsa seleccionada si hubiera
+        if self.lastRaftName is not None:
+            raft = self.raftCon.get_raft_by_name(self.lastRaftName)
+            # Guardar los datos de temperatura en la balsa
+            tempData = self.tempModel.getTemperatureData(raft.getSeaRegion())
+            if tempData is not None:
+                raft.setTemperature(tempData)
+                # Actualizar la balsa en la lista de balsas
+                if self.raftCon.update_rafts(raft.getId(), tempData):
+                    self._draw_raft(self.lastRaftName)            
+
+    def _clear_dashboard(self):
+        # Borrar todos los widgets del layout
+        for i in reversed(range(self._view.centralwidget.layout().count())): 
+            self._view.centralwidget.layout().itemAt(i).widget().deleteLater()
+
     def _draw_raft(self,raftName):
         # Mostrar mensaje temporal
         self._view.statusbar.showMessage(cfg.DASHBOARD_RAFT_SELECTED_MESSAGE.format(raftName))
+        self.lastRaftName = raftName
         # Buscar la balsa seleccionada
         raft = self.raftCon.get_raft_by_name(raftName)
-        #Borrar todos los widgets del layout
-        for i in reversed(range(self._view.centralwidget.layout().count())): 
-            self._view.centralwidget.layout().itemAt(i).widget().deleteLater()
-        
+        # Limpiar la vista
+        self._clear_dashboard()        
         # Dibujar la balsa
         self._draw_graph(0,1)
         self._draw_graph(1,1)

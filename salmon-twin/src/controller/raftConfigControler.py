@@ -283,5 +283,20 @@ class raftConfigController:
         except Exception as e:
             self.lastError = e
             return False
+
+    # Actualiza las balsas en el archivo de configuración    
+    def update_rafts(self, ID, tempData)->bool:
+        if not self.load_rafts():
+            auxTools.show_error_message(cfg.RAFTS_LOAD_ERROR_MESSAGE.format(error=self.lastError))
+        else:
+           raft = self.get_raft_by_id(ID)
+           if raft is not None:               
+               raft.setTemperature(tempData)
+               if not self._save_raft_list_data():
+                   auxTools.show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
+               else:
+                   return True
+        return False
+# End of raftConfigController.py
         
     

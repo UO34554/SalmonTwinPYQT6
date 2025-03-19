@@ -52,6 +52,7 @@ RAFTS_NAME_ERROR_MESSAGE = "El nombre de la balsa marina no puede estar vacío."
 PARSER_ERROR_COLUMN_NAME_NOT_FOUND = "No se encontró la columna {columnName} en los datos de temperatura."
 TEMPERATURE_PARSE_ERROR = "Error de parseo al procesar los datos de temperatura."
 FIT_TEMPERATURE_ERROR_REGION_NOT_FOUND = "El parámetro Region no se encuentra al predecir la temperatura."
+REGION_NOT_FOUND = "La región {0} no existe en los datos de temperatura."
 # Nombre de las columnas de los datos de temperatura
 TEMP_COLUMN_NAMES = [
     'Año',
@@ -81,13 +82,11 @@ SWEDISH_MONTH_NAMES = {
     'Nov': '11',
     'Des': '12'
 }
-
 # Configuración del log (NO SE USA)
 LOG_FILENAME = os.path.join(BASE_DIR, "salmon_monitor.log")
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 LOG_LEVEL = "DEBUG"
-
 # Listado de regiones marítimas
 SEA_REGIONS = [
     'Finnmark',
@@ -100,7 +99,6 @@ SEA_REGIONS = [
     'Hordaland',
     'Rogaland og Agder'
 ]
-
 # Se crea un diccionario con el índice de la región y el nombre de la región sueca
 INDEX_SEA_REGIONS = {
             0:'Finnmark',

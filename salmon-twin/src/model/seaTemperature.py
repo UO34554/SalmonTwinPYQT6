@@ -43,3 +43,14 @@ class DataTemperature:
         except Exception as e:
             self.lastError=("Error:" + e.__str__())
             return False
+        
+    def getTemperatureData(self, region):
+        try:
+            # Devolver el indice de la cadena region
+            for i in self.index_region.keys():
+                if region == self.index_region[i]:
+                    return self.data_regions[i]
+            return None
+        except KeyError:
+            self.lastError=cfg.REGION_NOT_FOUND.format(region)
+            return None
