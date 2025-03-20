@@ -2,9 +2,9 @@
 @author: Pedro López Treitiño
 Gestor unificado de balsas marinas para el sistema Salmon Twin
 """
-from PySide6.QtWidgets import QLabel, QDialog, QFileDialog, QGraphicsView, QGraphicsScene, QWidget, QVBoxLayout
+from PySide6.QtWidgets import QLabel, QDialog, QFileDialog, QGraphicsView, QGraphicsScene, QWidget, QVBoxLayout, QToolTip
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPen, QBrush, QColor
+from PySide6.QtGui import QPen, QBrush, QColor, QCursor
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 import numpy as np
@@ -250,8 +250,7 @@ class dashBoardController:
         # Pluma y pincel comunes
         pen = QPen(Qt.black)
         net_brush = QBrush(net_color)
-        float_brush = QBrush(float_color)
-        support_brush = QBrush(support_color)
+        float_brush = QBrush(float_color)        
 
         # 1. Estructura Flotante (Círculo principal)
         floating_structure = scene.addEllipse(-cage_radius, -cage_radius,
@@ -348,14 +347,28 @@ class dashBoardController:
     def _format_date(self, value):
         date = datetime.fromtimestamp(value)
         return date.strftime('%d/%m/%Y')
+      
+    # Mostrar un tooltip con la fecha y la temperatura y una línea vertical
+    def _mouse_move_plot(self, event, plot_widget, x, y, vline):
+        pos = event
+        if plot_widget.sceneBoundingRect().contains(pos):
+            mouse_point = plot_widget.plotItem.vb.mapSceneToView(pos)
+            vline.setPos(mouse_point.x())
+            vline.show()
+            # Mostrar tooltip con fecha y temperatura
+            closest_index = (abs(x - mouse_point.x())).idxmin()
+            date = datetime.fromtimestamp(x[closest_index]).strftime('%d/%m/%Y')
+            temperature = y[closest_index]
+            plot_widget.setToolTip(f"Fecha: {date}\nTemperatura: {temperature:.2f} ºC")
+        else:
+            vline.hide()
+            plot_widget.setToolTip(None)
 
     # Graficar una serie temporal
     def _draw_graph_temperature(self,pos_i,pos_j,raft):
         # Crear un PlotItem para representar la gráfica
         plot_widget = pg.PlotWidget(title="Temperatura del mar en {0}".format(raft.getSeaRegion()))
-        plot_widget.setLabels(left="Grados ºC", bottom="Fechas")
-        # Cambiar el label del eje X de manera específica
-        plot_widget.getAxis('bottom').setLabel("Fechas", units=None)
+        plot_widget.setLabels(left="Grados ºC", bottom="Fechas")        
         plot_widget.showGrid(x=True, y=True)
         plot_widget.setBackground((0, 0, 0, 140))        
 
@@ -379,6 +392,20 @@ class dashBoardController:
             # Personalizar los ticks del eje X
             axis = plot_widget.getAxis('bottom')
             axis.setTicks([ticks])
+            # Cambiar el label del eje X de manera específica
+            axis.setLabel("", units="")
+
+            # Crear un ScatterPlotItem para permitir el tooltip
+            scatter = pg.ScatterPlotItem(x=x, y=y, pen=pg.mkPen(None), brush=pg.mkBrush(255, 255, 255, 120), size=7)
+            plot_widget.addItem(scatter)
+
+            # Crear una línea vertical
+            vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='y', style=Qt.DashLine))
+            plot_widget.addItem(vline)
+
+            # Conectar el evento de movimiento del ratón            
+            def on_mouse_move(event):self._mouse_move_plot(event, plot_widget, x, y, vline)            
+            plot_widget.scene().sigMouseMoved.connect(on_mouse_move)
 
             # Graficar los datos de temperatura
             plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2))
