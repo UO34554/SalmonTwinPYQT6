@@ -203,6 +203,10 @@ class dashBoardController:
         self.timer.start(500)  
 
     def _update_fish_positions(self):
+         # Exit if fish items or positions are not initialized.
+        if not hasattr(self, 'fish_items') or not hasattr(self, 'fish_positions'):
+            return
+
         for i, fish in enumerate(self.fish_items):
             # Obtener la posición actual
             current_pos = self.fish_positions[i]
@@ -222,7 +226,10 @@ class dashBoardController:
             self.fish_positions[i] = [new_x, new_y, new_z]
 
             # Actualizar la posición del pez
-            fish.setData(pos=np.array([[new_x, new_y, new_z]]))
+            if fish.visible():
+                fish.setData(pos=np.array([[new_x, new_y, new_z]]))
+            else:
+                print(f"Fish {i} is not visible, skipping update.")
     # --- Fin Grafico 3d ---   
 
     # --- Grafico 2d ---
