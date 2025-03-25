@@ -23,16 +23,18 @@ class dashBoardController:
         self.lastError = None
         self.raftCon = raftController
         self.tempModel = DataTemperature()
-        self.dataLoader = DataLoader()
-        self.lastRaftName = None        
+        self.dataLoader = DataLoader()        
+        self.lastRaftName = None
+
+        # --- Inicialización de la vista ---        
         # Configura el idioma a español (España) para las fechas
-        locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
-        # --- Inicialización de la vista ---
+        locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')        
         # Crear un QLabel para el mensaje de estado
         self.label_estado = QLabel()
         self._view.statusbar.addPermanentWidget(self.label_estado)
         # Cargar las balsas marinas
         self.load_rafts_from_controller()
+        # Inicializar los datos del gráfico 3D
         self.fish_items = []
         self.fish_count = 50
         self.timer = QTimer()
@@ -49,9 +51,9 @@ class dashBoardController:
         self._view.show()
 
     def on_raft_view(self):        
-        self.load_rafts_from_controller()
-        # Ejemplo de datos que cambian las acciones del menú
+        self.load_rafts_from_controller()        
         data = self.raftCon.get_name_rafts()
+        # Mostrar un diálogo para seleccionar una balsa
         option = self.aux_list_dialog(data)
         if option:
             # Actualizar el mensaje de estado permanente
@@ -95,11 +97,13 @@ class dashBoardController:
                 if self.raftCon.update_rafts(raft.getId(), tempData):
                     self._draw_raft(self.lastRaftName)            
 
+    # Borra todos los widgets del layout central
     def _clear_dashboard(self):
         # Borrar todos los widgets del layout
         for i in reversed(range(self._view.centralwidget.layout().count())): 
             self._view.centralwidget.layout().itemAt(i).widget().deleteLater()
 
+    # Dibujar la balsa seleccionada
     def _draw_raft(self,raftName):
         # Mostrar mensaje temporal
         self._view.statusbar.showMessage(cfg.DASHBOARD_RAFT_SELECTED_MESSAGE.format(raftName))
@@ -138,6 +142,7 @@ class dashBoardController:
         # Mostrar el widget 3D
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
 
+    # Crear la estructura circular de la balsa
     def _create_balsa(self,view):
         # Estructura de la balsa (círculo)
         radius = 10
@@ -150,6 +155,7 @@ class dashBoardController:
         balsa = gl.GLLinePlotItem(pos=np.array([x, y, z]).T, color=(1, 0, 0, 1), width=2)
         view.addItem(balsa)
 
+    # Crear redes bajo el agua
     def _create_nets(self,view):
         # Red (cilindro bajo la balsa)
         radius = 10
@@ -171,6 +177,7 @@ class dashBoardController:
         bottom = gl.GLLinePlotItem(pos=bottom_circle, color=(0, 0, 1, 0.5), width=1)
         view.addItem(bottom)
 
+    # Crear flotadores (esferas distribuidas en el círculo)
     def _create_flotadores(self,view):
         # Flotadores (esferas distribuidas en el círculo)
         radius = 10
@@ -183,6 +190,7 @@ class dashBoardController:
             sphere = gl.GLScatterPlotItem(pos=np.array([[x, y, z]]), size=20, color=(0, 1, 0, 1))
             view.addItem(sphere)    
 
+    # Crear peces (esferas pequeñas dentro de la red)
     def _create_fish(self, view):
         # Crear peces (esferas pequeñas dentro de la red)
         self.fish_items = []
@@ -201,7 +209,8 @@ class dashBoardController:
         self.timer.timeout.connect(self._update_fish_positions)
         # Actualizar la posición de los peces cada 500 ms
         self.timer.start(500)  
-
+    
+    # Actualizar la posición de los peces
     def _update_fish_positions(self):
          # Exit if fish items or positions are not initialized.
         if not hasattr(self, 'fish_items') or not hasattr(self, 'fish_positions'):
@@ -363,7 +372,7 @@ class dashBoardController:
             vline.setPos(mouse_point.x())
             vline.show()
             # Mostrar tooltip con fecha y temperatura
-            closest_index = (abs(x - mouse_point.x())).idxmin()
+            closest_index = np.argmin(abs(x - mouse_point.x()))
             date = datetime.fromtimestamp(x[closest_index]).strftime('%d/%m/%Y')
             temperature = y[closest_index]
             plot_widget.setToolTip(f"Fecha: {date}\nTemperatura: {temperature:.2f} ºC")
@@ -384,42 +393,50 @@ class dashBoardController:
             # Mostrar una 'X' roja si no hay datos de temperatura
             plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
         else:
-            # Convertir la columna 'ds' a formato timestamp si no está ya en datetime
+            # Obtener los datos de temperatura de la balsa            
             df_temperature = raft.getTemperature()
+            # Convertir la columna 'ds' a formato timestamp si no está ya en datetime
             df_temperature['ds'] = pd.to_datetime(df_temperature['ds'], errors='coerce')
-
-            # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
-            x = df_temperature['ds'].map(pd.Timestamp.timestamp)
-            y = df_temperature['y']            
+            # Eliminar valores NaT antes de filtrar
+            df_temperature = df_temperature.dropna(subset=['ds'])
+            # Filtrar los datos de temperatura con la fecha inicial y final de la balsa
+            df_temperature = df_temperature[(df_temperature['ds'].dt.date >= raft.getStartDate()) & (df_temperature['ds'].dt.date <= raft.getEndDate())]
+            if df_temperature.empty:
+                # Mostrar una 'X' roja si no hay datos de temperatura
+                plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
+            else:
+                # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
+                x = df_temperature['ds'].map(pd.Timestamp.timestamp).values
+                y = df_temperature['y'].values            
             
-            # Filtros dinámicos para los ticks
-            interval = max(1, len(x) // 7) 
-            ticks = [(x[i], self._format_date(x[i])) for i in range(0, len(x), interval)]
+                # Filtros dinámicos para los ticks
+                interval = max(1, len(x) // 7) 
+                ticks = [(x[i], self._format_date(x[i])) for i in range(0, len(x), interval)]
 
-            # Personalizar los ticks del eje X
-            axis = plot_widget.getAxis('bottom')
-            axis.setTicks([ticks])
-            # Cambiar el label del eje X de manera específica
-            axis.setLabel("", units="")
+                # Personalizar los ticks del eje X
+                axis = plot_widget.getAxis('bottom')
+                axis.setTicks([ticks])
+                # Cambiar el label del eje X de manera específica
+                axis.setLabel("", units="")
 
-            # Crear un ScatterPlotItem para permitir el tooltip
-            scatter = pg.ScatterPlotItem(x=x, y=y, pen=pg.mkPen(None), brush=pg.mkBrush(255, 255, 255, 120), size=7)
-            plot_widget.addItem(scatter)
+                # Crear un ScatterPlotItem para permitir el tooltip
+                scatter = pg.ScatterPlotItem(x=x, y=y, pen=pg.mkPen(None), brush=pg.mkBrush(255, 255, 255, 120), size=7)
+                plot_widget.addItem(scatter)
 
-            # Crear una línea vertical
-            vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='y', style=Qt.DashLine))
-            plot_widget.addItem(vline)
+                # Crear una línea vertical
+                vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='y', style=Qt.DashLine))
+                plot_widget.addItem(vline)
 
-            # Conectar el evento de movimiento del ratón            
-            def on_mouse_move(event):self._mouse_move_plot(event, plot_widget, x, y, vline)            
-            plot_widget.scene().sigMouseMoved.connect(on_mouse_move)
+                # Conectar el evento de movimiento del ratón            
+                def on_mouse_move(event):self._mouse_move_plot(event, plot_widget, x, y, vline)            
+                plot_widget.scene().sigMouseMoved.connect(on_mouse_move)
 
-            # Graficar los datos de temperatura
-            plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2))
+                # Graficar los datos de temperatura
+                plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2))
 
-            # Ajustar los rangos de los ejes de manera dinámica
-            plot_widget.setXRange(x.min(), x.max(), padding=0.1)
-            plot_widget.setYRange(y.min(), y.max(), padding=0.1)
+                # Ajustar los rangos de los ejes de manera dinámica
+                plot_widget.setXRange(x.min(), x.max(), padding=0.1)
+                plot_widget.setYRange(y.min(), y.max(), padding=0.1)
         
         self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)
 
