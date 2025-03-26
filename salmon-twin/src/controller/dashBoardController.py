@@ -143,8 +143,8 @@ class dashBoardController:
         self._clear_dashboard()        
         # Dibujar la balsa
         self._draw_graph_temperature(0,1,raft)
-        self._draw_graph_temperature(1,1,raft)
-        self._draw_graph_temperature(2,1,raft)
+        #self._draw_graph_temperature(1,1,raft)
+        #self._draw_graph_temperature(2,1,raft)
         self._draw_schematic(0,0)
         self._draw_infopanel(1,0,raft)
         self._draw_schematic_3d(2,0)
@@ -394,7 +394,7 @@ class dashBoardController:
         return date.strftime('%d/%m/%Y')
       
     # Mostrar un tooltip con la fecha y la temperatura y una línea vertical
-    def _mouse_move_plot(self, event, plot_widget, x, y, vline):
+    def _mouse_move_plot(self, event, plot_widget, x, y, y_forecast, vline):
         pos = event
         if plot_widget.sceneBoundingRect().contains(pos):
             mouse_point = plot_widget.plotItem.vb.mapSceneToView(pos)
@@ -404,7 +404,11 @@ class dashBoardController:
             closest_index = np.argmin(abs(x - mouse_point.x()))
             date = datetime.fromtimestamp(x[closest_index]).strftime('%d/%m/%Y')
             temperature = y[closest_index]
-            plot_widget.setToolTip(f"Fecha: {date}\nTemperatura: {temperature:.2f} ºC")
+            if y_forecast is not None:
+                temperature_forecast = y_forecast[closest_index]
+                plot_widget.setToolTip(f"Fecha: {date}\nTemperatura: {temperature:.2f} ºC\nPredicción: {temperature_forecast:.2f} ºC")
+            else:                
+                plot_widget.setToolTip(f"Fecha: {date}\nTemperatura: {temperature:.2f} ºC")
         else:
             vline.hide()
             plot_widget.setToolTip(None)
@@ -422,6 +426,15 @@ class dashBoardController:
             # Mostrar una 'X' roja si no hay datos de temperatura
             plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
         else:
+            # Obtener los datos de predicción de temperatura de la balsa si hay
+            if raft.getTemperatureForecast() is not None:
+                df_temperature_forecast = raft.getTemperatureForecast()
+                # Convertir la columna 'ds' a formato timestamp si no está ya en datetime
+                df_temperature_forecast['ds'] = pd.to_datetime(df_temperature_forecast['ds'], errors='coerce')
+                # Eliminar valores NaT antes de filtrar
+                df_temperature_forecast = df_temperature_forecast.dropna(subset=['ds'])
+                # Filtrar los datos de temperatura con la fecha inicial y final de la balsa
+                df_temperature_forecast = df_temperature_forecast[(df_temperature_forecast['ds'].dt.date >= raft.getStartDate()) & (df_temperature_forecast['ds'].dt.date <= raft.getEndDate())]
             # Obtener los datos de temperatura de la balsa            
             df_temperature = raft.getTemperature()
             # Convertir la columna 'ds' a formato timestamp si no está ya en datetime
@@ -436,7 +449,7 @@ class dashBoardController:
             else:
                 # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
                 x = df_temperature['ds'].map(pd.Timestamp.timestamp).values
-                y = df_temperature['y'].values            
+                y = df_temperature['y'].values                           
             
                 # Filtros dinámicos para los ticks
                 interval = max(1, len(x) // 7) 
@@ -456,16 +469,27 @@ class dashBoardController:
                 vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='y', style=Qt.DashLine))
                 plot_widget.addItem(vline)
 
-                # Conectar el evento de movimiento del ratón            
-                def on_mouse_move(event):self._mouse_move_plot(event, plot_widget, x, y, vline)            
-                plot_widget.scene().sigMouseMoved.connect(on_mouse_move)
-
                 # Graficar los datos de temperatura
                 plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2))
+                if df_temperature_forecast is not None:
+                    # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
+                    x_forecast = df_temperature_forecast['ds'].map(pd.Timestamp.timestamp).values
+                    y_forecast = df_temperature_forecast['yhat'].values
+                    # Graficar los datos de predicción de temperatura
+                    plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='r', width=2), name="Predicción")  
 
                 # Ajustar los rangos de los ejes de manera dinámica
                 plot_widget.setXRange(x.min(), x.max(), padding=0.1)
                 plot_widget.setYRange(y.min(), y.max(), padding=0.1)
+
+                # Conectar el evento de movimiento del ratón
+                if df_temperature_forecast is not None:
+                    def on_mouse_move(event):self._mouse_move_plot(event, plot_widget, x, y, y_forecast, vline)
+                else:            
+                    def on_mouse_move(event):self._mouse_move_plot(event, plot_widget, x, y, None, vline)
+
+                # Conectar el evento de movimiento del ratón
+                plot_widget.scene().sigMouseMoved.connect(on_mouse_move)
         
         self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)
 

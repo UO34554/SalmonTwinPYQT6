@@ -50,6 +50,11 @@ RAFTS_EMPTY_CONFIG_ERROR_MESSAGE = "Error al crear un archivo de configuración 
 RAFTS_ID_NOT_FOUND = "La balsa con id={id} no existe"
 RAFTS_SAVE_ERROR_MESSAGE = "Error al guardar los datos de la balsa marina: {error}"
 RAFTS_NAME_ERROR_MESSAGE = "El nombre de la balsa marina no puede estar vacío."
+RAFTS_ERROR_PARSER_START_DATE = "Error al convertir fecha de inicio: {e}"
+RAFTS_ERROR_PARSER_END_DATE = "Error al convertir fecha de fin: {e}"
+RAFTS_ERROR_PARSER_TEMPERATURE = "Error al convertir los datos de temperatura: {e}"
+RAFTS_ERROR_PARSER_TEMPERATURE_FORECAST = "Error al convertir los datos de predicción de temperatura: {e}"
+RAFTS_ERROR_FROM_DICT_TO_RAFT = "Error al crear balsa desde diccionario: {e}"
 
 #--- Cadenas para el modelo de temperatura marina en seaTemperature.py
 PARSER_ERROR_COLUMN_NAME_NOT_FOUND = "No se encontró la columna {columnName} en los datos de temperatura."

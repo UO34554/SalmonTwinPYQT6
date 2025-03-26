@@ -4,6 +4,7 @@ Gestor unificado de balsas marinas para el sistema Salmon Twin
 """
 from datetime import datetime
 import pandas as pd
+import config as cfg
 
 # Clase que representa una balsa marina
 class seaRaft:        
@@ -112,24 +113,32 @@ class seaRaft:
                 try:
                     start_date = datetime.fromisoformat(data['startDate'])
                 except ValueError as e:
-                    lastError = f"Error al convertir fecha de inicio: {e}"
+                    lastError = cfg.RAFTS_ERROR_PARSER_START_DATE.format(e)
                     return None, lastError
 
             if 'endDate' in data and data['endDate']:
                 try:
                     end_date = datetime.fromisoformat(data['endDate'])
                 except ValueError as e:
-                    lastError = f"Error al convertir fecha de fin: {e}"
+                    lastError = cfg.RAFTS_ERROR_PARSER_END_DATE.format(e)
                     return None, lastError
 
             # Reconstruir temperature como un DataFrame si existe
             temperature = None
             if 'temperature' in data and data['temperature']:
-                try:
-                    import pandas as pd
+                try:                    
                     temperature = pd.DataFrame(data['temperature'])
                 except Exception as e:
-                    lastError = f"Error al reconstruir temperature: {e}"
+                    lastError = cfg.RAFTS_ERROR_PARSER_TEMPERATURE.format(e)
+                    return None, lastError
+                
+            # Reconstruir temperatureForecast como un DataFrame si existe
+            temperatureForecast = None
+            if 'temperatureForecast' in data and data['temperatureForecast']:
+                try:                    
+                    temperatureForecast = pd.DataFrame(data['temperatureForecast'])
+                except Exception as e:
+                    lastError = cfg.RAFTS_ERROR_PARSER_TEMPERATURE_FORECAST.format(e)
                     return None, lastError
 
             # Crear el objeto seaRaft
@@ -139,8 +148,9 @@ class seaRaft:
                 seaRegion=data.get('seaRegion'),
                 startDate=start_date,
                 endDate=end_date,
-                temperature=temperature
+                temperature=temperature,
+                temperatureForecast=temperatureForecast
             ), lastError
         except Exception as e:
-            lastError = f"Error al crear balsa desde diccionario: {e}"
+            lastError = cfg.RAFTS_ERROR_FROM_DICT_TO_RAFT.format(e)
         return None, lastError
