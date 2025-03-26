@@ -38,6 +38,8 @@ class dashBoardController:
         self.fish_items = []
         self.fish_count = 50
         self.timer = QTimer()
+        # variable para rastrear la conexión del temporizador
+        self.timer_connected = False
 
         # --- Conectar señales de la vista con manejadores de eventos ---
         self._view.actionConfigurar.triggered.connect(self.on_raft_config)
@@ -128,9 +130,23 @@ class dashBoardController:
 
     # Borra todos los widgets del layout central
     def _clear_dashboard(self):
+        # Detener el temporizador para evitar actualizaciones después de eliminar widgets
+        self.timer.stop()
+        # Desconectar específicamente el método que sabemos que se conecta en _create_fish
+        if self.timer_connected:
+            try:
+                self.timer.timeout.disconnect(self._update_fish_positions)
+                self.timer_connected = False  # Marcar como desconectado
+            except TypeError:
+                pass
+    
         # Borrar todos los widgets del layout
         for i in reversed(range(self._view.centralwidget.layout().count())): 
             self._view.centralwidget.layout().itemAt(i).widget().deleteLater()
+    
+        # Limpiar las referencias a los peces
+        self.fish_items = []
+        self.fish_positions = []
 
     # Dibujar la balsa seleccionada
     def _draw_raft(self,raftName):
@@ -143,8 +159,8 @@ class dashBoardController:
         self._clear_dashboard()        
         # Dibujar la balsa
         self._draw_graph_temperature(0,1,raft)
-        #self._draw_graph_temperature(1,1,raft)
-        #self._draw_graph_temperature(2,1,raft)
+        self._draw_graph_temperature(1,1,raft=None)
+        self._draw_graph_temperature(2,1,raft=None)
         self._draw_schematic(0,0)
         self._draw_infopanel(1,0,raft)
         self._draw_schematic_3d(2,0)
@@ -235,7 +251,14 @@ class dashBoardController:
             view.addItem(fish)            
         # Configurar un temporizador para animar los peces
         self.timer.stop()        
+        # Desconectar primero si ya estaba conectado
+        if self.timer_connected:
+            try:
+                self.timer.timeout.disconnect(self._update_fish_positions)
+            except TypeError:
+                pass
         self.timer.timeout.connect(self._update_fish_positions)
+        self.timer_connected = True  # Marcar como conectado
         # Actualizar la posición de los peces cada 500 ms
         self.timer.start(500)  
     
@@ -416,18 +439,22 @@ class dashBoardController:
     # Graficar una serie temporal
     def _draw_graph_temperature(self,pos_i,pos_j,raft):
         # Crear un PlotItem para representar la gráfica
-        plot_widget = pg.PlotWidget(title="Temperatura del mar en {0}".format(raft.getSeaRegion()))
+        if raft is None:
+            region = "------"
+        else:
+            region = raft.getSeaRegion()    
+        plot_widget = pg.PlotWidget(title="Temperatura del mar en {0}".format(region))
         plot_widget.setLabels(left="Grados ºC", bottom="Fechas")        
         plot_widget.showGrid(x=True, y=True)
         plot_widget.setBackground((0, 0, 0, 140))        
 
         # Agregar datos al gráfico si existen
-        if raft.getTemperature().empty:
+        if raft is None or raft.getTemperature().empty:
             # Mostrar una 'X' roja si no hay datos de temperatura
             plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
         else:
             # Obtener los datos de predicción de temperatura de la balsa si hay
-            if raft.getTemperatureForecast() is not None:
+            if not raft.getTemperatureForecast().empty:
                 df_temperature_forecast = raft.getTemperatureForecast()
                 # Convertir la columna 'ds' a formato timestamp si no está ya en datetime
                 df_temperature_forecast['ds'] = pd.to_datetime(df_temperature_forecast['ds'], errors='coerce')
@@ -435,6 +462,8 @@ class dashBoardController:
                 df_temperature_forecast = df_temperature_forecast.dropna(subset=['ds'])
                 # Filtrar los datos de temperatura con la fecha inicial y final de la balsa
                 df_temperature_forecast = df_temperature_forecast[(df_temperature_forecast['ds'].dt.date >= raft.getStartDate()) & (df_temperature_forecast['ds'].dt.date <= raft.getEndDate())]
+            else:
+                df_temperature_forecast = None
             # Obtener los datos de temperatura de la balsa            
             df_temperature = raft.getTemperature()
             # Convertir la columna 'ds' a formato timestamp si no está ya en datetime
@@ -471,7 +500,7 @@ class dashBoardController:
 
                 # Graficar los datos de temperatura
                 plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2))
-                if df_temperature_forecast is not None:
+                if df_temperature_forecast is not None and not df_temperature_forecast.empty:
                     # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
                     x_forecast = df_temperature_forecast['ds'].map(pd.Timestamp.timestamp).values
                     y_forecast = df_temperature_forecast['yhat'].values
