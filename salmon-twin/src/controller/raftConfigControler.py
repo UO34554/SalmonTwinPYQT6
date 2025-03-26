@@ -284,19 +284,34 @@ class raftConfigController:
             self.lastError = e
             return False
 
-    # Actualiza las balsas en el archivo de configuración    
-    def update_rafts(self, ID, tempData)->bool:
+    # Actualiza la temperatura de las balsas en el archivo de configuración    
+    def update_rafts_temp(self, raft)->bool:
         if not self.load_rafts():
             auxTools.show_error_message(cfg.RAFTS_LOAD_ERROR_MESSAGE.format(error=self.lastError))
         else:
-           raft = self.get_raft_by_id(ID)
-           if raft is not None:               
-               raft.setTemperature(tempData)
+           raftInList = self.get_raft_by_id(raft.getId())
+           if raftInList is not None:               
+               raftInList.setTemperature(raft.getTemperature())
                if not self._save_raft_list_data():
                    auxTools.show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
                else:
                    return True
         return False
+    
+    # Actualiza la predicción de temperatura de las balsas en el archivo de configuración
+    def update_rafts_temp_forecast(self, raft)->bool:
+        if not self.load_rafts():
+            auxTools.show_error_message(cfg.RAFTS_LOAD_ERROR_MESSAGE.format(error=self.lastError))
+        else:
+           raftInList = self.get_raft_by_id(raft.getId())
+           if raftInList is not None:               
+               raftInList.setTemperatureForecast(raft.getTemperatureForecast())
+               if not self._save_raft_list_data():
+                   auxTools.show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
+               else:
+                   return True
+        return False
+
 # End of raftConfigController.py
         
     

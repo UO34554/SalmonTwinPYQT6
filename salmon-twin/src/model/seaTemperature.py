@@ -4,6 +4,8 @@ Gestor unificado de balsas marinas para el sistema Salmon Twin
 """
 import config as cfg
 import pandas as pd
+from prophet import Prophet
+from prophet.plot import add_changepoints_to_plot
 
 class DataTemperature:
     def __init__(self):
@@ -43,7 +45,8 @@ class DataTemperature:
         except Exception as e:
             self.lastError=("Error:" + e.__str__())
             return False
-        
+
+    # Devuelve los datos de temperatura para la región seleccionada    
     def getTemperatureData(self, region):
         try:
             # Devolver el indice de la cadena region
@@ -54,3 +57,38 @@ class DataTemperature:
         except KeyError:
             self.lastError=cfg.REGION_NOT_FOUND.format(region)
             return None
+        
+    # Predice los datos de temperatura en tempData
+    def fitTempData(self,tempData,changepoint_range,changepoint_prior_scale,yearly_seasonality,periods):
+        data_forecast = None
+        fig_data_forecast = None
+        fig_data_forecast_components = None
+
+        #changepoint_range % of the data to be considered as changepoints (default 0.8) 80% of the data
+        #changepoint_prior_scale parameter which determines the flexibility of the trend (default 0.05)
+        #yearly_seasonality parameter which determines the flexibility of the yearly seasonality (default 10)
+
+        # Crea un objeto de la libreria Prophet
+        p = Prophet(changepoint_range=changepoint_range,changepoint_prior_scale=changepoint_prior_scale,yearly_seasonality=yearly_seasonality)
+        
+        # Ajusta el modelo a los datos de temperatura
+        p.fit(tempData)
+        
+        # Predice los datos de temperatura para el futuro
+        future_data = p.make_future_dataframe(periods)        
+        data_forecast = p.predict(future_data)
+
+        #--- Debug ---
+        # Plot the forecast
+        #fig_data_forecast = p.plot(data_forecast)
+        # Add the changepoints to the forecast plot
+        #add_changepoints_to_plot(fig_data_forecast.gca(), p, data_forecast)
+        # Plot the forecast components
+        #fig_data_forecast_components = p.plot_components(data_forecast)
+        #return data_forecast,fig_data_forecast,fig_data_forecast_components
+        #--- End Debug ---
+
+        return data_forecast
+
+
+        

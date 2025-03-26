@@ -19,6 +19,9 @@ import resources
 if __name__ == "__main__":
     result = 0
     try:
+        # --- Configurar la salida estándar ---
+        # Se configura la salida estándar para que acepte caracteres UTF-8
+        sys.stdout.reconfigure(encoding='utf-8')
         print(cfg.APP_START_MESSAGE)      
         # --- Inicializar la aplicación ---
         # sys.argv es una lista de argumentos pasados al script de Python

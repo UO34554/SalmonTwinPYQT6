@@ -30,6 +30,9 @@ DASHBOARD_RAFT_SELECTED_MESSAGE = "Datos de la balsa marina: {0}"
 DASHBOARD_LOAD_TEMP_FILE_SUCCESS = "Datos de temperatura cargados correctamente."
 DASHBOARD_LOAD_TEMP_FILE_ERROR = "Error al cargar los datos de temperatura."
 DASHBOARD_LOAD_FILE_MSG = "Cargar archivo de datos de temperatura"
+DASHBOARD_NO_TEMP_DATA_ERROR = "No hay datos de temperatura para la balsa seleccionada."
+DASHBOARD_PREDICT_TEMP_SUCCESS = "Predicción de temperatura exitosa."
+DASHBOARD_PREDICT_TEMP_ERROR = "Error al predecir la temperatura."
 
 #--- Datos de configuración de utilidades
 UTILITY_DATA_LOAD_FILE_NOT_FOUND_MESSAGE = "Error al cargar los datos: archivo no encontrado."

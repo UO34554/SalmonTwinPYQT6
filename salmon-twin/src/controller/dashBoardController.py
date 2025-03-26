@@ -4,7 +4,7 @@ Gestor unificado de balsas marinas para el sistema Salmon Twin
 """
 from PySide6.QtWidgets import QLabel, QDialog, QFileDialog, QGraphicsView, QGraphicsScene, QWidget, QVBoxLayout, QToolTip
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPen, QBrush, QColor, QCursor
+from PySide6.QtGui import QPen, QBrush, QColor
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 import numpy as np
@@ -42,7 +42,8 @@ class dashBoardController:
         # --- Conectar señales de la vista con manejadores de eventos ---
         self._view.actionConfigurar.triggered.connect(self.on_raft_config)
         self._view.actionVer.triggered.connect(self.on_raft_view)
-        self._view.actionCSV.triggered.connect(self.on_temperature_load_csv)        
+        self._view.actionCSV.triggered.connect(self.on_temperature_load_csv)
+        self._view.actionPredecir.triggered.connect(self.on_temperature_predict)       
     
     # --- Eventos de la vista ---
     def show(self):
@@ -84,6 +85,34 @@ class dashBoardController:
         else:
             auxTools.show_error_message(cfg.DASHBOARD_LOAD_TEMP_FILE_ERROR)
 
+    def on_temperature_predict(self):
+        self.load_rafts_from_controller()        
+        data = self.raftCon.get_name_rafts()
+        # Mostrar un diálogo para seleccionar una balsa
+        option = self.aux_list_dialog(data)
+        if option:
+            # Buscar la balsa seleccionada
+            raft = self.raftCon.get_raft_by_name(option)
+            # Agregar datos al gráfico si existen
+            dataTemp = raft.getTemperature()
+            if dataTemp.empty:
+                # Mostrar un mensaje de error temporal
+                self._view.statusbar.showMessage(cfg.DASHBOARD_NO_TEMP_DATA_ERROR)
+                return
+            else:
+                # Implementar la predicción de la temperatura del mar
+                data_forecast = self.tempModel.fitTempData(dataTemp,0.8,0.05,True,365)
+                if data_forecast is not None:
+                    raft.setTemperatureForecast(data_forecast)
+                    # Actualizar la balsa en la lista de balsas
+                    if self.raftCon.update_rafts_temp_forecast(raft):    
+                        auxTools.show_info_dialog(cfg.DASHBOARD_PREDICT_TEMP_SUCCESS)
+                else:
+                    auxTools.show_error_message(cfg.DASHBOARD_PREDICT_TEMP_ERROR)
+        else:
+            # Mostrar mensaje de error temporal
+            self._view.statusbar.showMessage(cfg.DASHBOARD_SELECT_RAFT_ERORR_MESSAGE)        
+
     # --- Métodos de la lógica de negocio
     def _save_raft_temperature(self):
         # Buscar la balsa seleccionada si hubiera
@@ -94,7 +123,7 @@ class dashBoardController:
             if tempData is not None:
                 raft.setTemperature(tempData)
                 # Actualizar la balsa en la lista de balsas
-                if self.raftCon.update_rafts(raft.getId(), tempData):
+                if self.raftCon.update_rafts_temp(raft):
                     self._draw_raft(self.lastRaftName)            
 
     # Borra todos los widgets del layout central
