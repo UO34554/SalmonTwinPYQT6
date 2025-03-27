@@ -33,6 +33,11 @@ DASHBOARD_LOAD_FILE_MSG = "Cargar archivo de datos de temperatura"
 DASHBOARD_NO_TEMP_DATA_ERROR = "No hay datos de temperatura para la balsa seleccionada."
 DASHBOARD_PREDICT_TEMP_SUCCESS = "Predicción de temperatura exitosa."
 DASHBOARD_PREDICT_TEMP_ERROR = "Error al predecir la temperatura."
+DASHBOARD_FISH_3D_ERROR =  "El pez {0} no es visible, anulando la actualización."
+DASHBOARD_GRAPH_MAINSTRUCTURE_MSG = "Estructura Flotante Principal"
+DASHBOARD_GRAPH_NET_MSG = "Red de la Jaula"
+DASHBOARD_GRAPH_PILLARS_MSG = "Soporte de la Balsa"
+DASHBOARD_GRAPH_ANCHOR_MSG = "Anclaje"
 
 #--- Datos de configuración de utilidades
 UTILITY_DATA_LOAD_FILE_NOT_FOUND_MESSAGE = "Error al cargar los datos: archivo no encontrado."

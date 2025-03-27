@@ -2,7 +2,7 @@
 @author: Pedro López Treitiño
 Gestor unificado de balsas marinas para el sistema Salmon Twin
 """
-from PySide6.QtWidgets import QLabel, QDialog, QFileDialog, QGraphicsView, QGraphicsScene, QWidget, QVBoxLayout, QToolTip
+from PySide6.QtWidgets import QLabel, QDialog, QFileDialog, QGraphicsView, QGraphicsScene, QWidget, QVBoxLayout, QHBoxLayout, QSlider
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPen, QBrush, QColor
 import pyqtgraph as pg
@@ -14,7 +14,7 @@ import config as cfg
 import locale
 from model.seaTemperature import DataTemperature
 from utility.utility import OptionsDialog, auxTools, DataLoader
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Controlodador de la vista de dashboard
 class dashBoardController:
@@ -290,7 +290,7 @@ class dashBoardController:
             if fish.visible():
                 fish.setData(pos=np.array([[new_x, new_y, new_z]]))
             else:
-                print(f"Fish {i} is not visible, skipping update.")
+                print(cfg.DASHBOARD_FISH_3D_ERROR.format(i))
     # --- Fin Grafico 3d ---   
 
     # --- Grafico 2d ---
@@ -324,13 +324,13 @@ class dashBoardController:
         floating_structure = scene.addEllipse(-cage_radius, -cage_radius,
                                                   2 * cage_radius, 2 * cage_radius,
                                                   pen, float_brush)
-        floating_structure.setToolTip("Estructura Flotante Principal")
+        floating_structure.setToolTip(cfg.DASHBOARD_GRAPH_MAINSTRUCTURE_MSG)
 
         # 2. Red de la Jaula
         net = scene.addEllipse(-cage_radius + 10, -cage_radius + 10,
                                      2 * cage_radius - 20, 2 * cage_radius - 20,
                                      pen, net_brush)
-        net.setToolTip("Red de la Jaula")
+        net.setToolTip(cfg.DASHBOARD_GRAPH_NET_MSG)
 
         # 3. Soportes (Ejemplo: líneas radiales)
         num_supports = 8
@@ -343,7 +343,7 @@ class dashBoardController:
             x2 = support_length * math.cos(math.radians(angle))
             y2 = support_length * math.sin(math.radians(angle))
             support = scene.addLine(x1, y1, x2, y2, QPen(support_color, 2))
-            support.setToolTip("Soporte de la Balsa")
+            support.setToolTip(cfg.DASHBOARD_GRAPH_PILLARS_MSG)
 
         # 4. Anclajes (Ejemplo: pequeños rectángulos en los extremos de los soportes)
         anchor_size = 10
@@ -354,33 +354,58 @@ class dashBoardController:
             y = (support_length + anchor_size) * math.sin(math.radians(angle))
             anchor = scene.addRect(x - anchor_size / 2, y - anchor_size / 2,
                                          anchor_size, anchor_size, pen, QBrush(Qt.blue))
-            anchor.setToolTip("Anclaje")
+            anchor.setToolTip(cfg.DASHBOARD_GRAPH_ANCHOR_MSG)
         
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
     # --- Fin Grafico 2d ---
 
+    # Función para actualizar la etiqueta de la fecha cuando cambia el valor del slider
+    def update_current_date(self,value,raft,lcurrentDate):
+        start_date = raft.getStartDate()
+        end_date = raft.getEndDate()
+        delta_days = (end_date - start_date).days
+        if delta_days > 0:  # Protect against division by zero
+            current_day_offset = int(delta_days * (value / 100))
+            current_date = start_date + timedelta(days=current_day_offset)
+            formatted_date = current_date.strftime("%d de %B de %Y")
+            lcurrentDate.setText("Fecha actual: " + formatted_date)
+
     # Datos de la balsa
-    def _draw_infopanel(self,pos_i,pos_j,raf):
+    def _draw_infopanel(self,pos_i,pos_j,raft):
         # Crear un widget para mostrar información de la balsa
         view = QWidget()
         # Crear un layout vertical para organizar los QLabel
         layout = QVBoxLayout()
         view.setLayout(layout)
         # Mostrar información de la balsa
-        lName = QLabel(raf.getName())
-        lRegion = QLabel("Región del mar: {0}".format(raf.getSeaRegion()))
+        lName = QLabel(raft.getName())
+        lRegion = QLabel("Región del mar: {0}".format(raft.getSeaRegion()))
         lLocation = QLabel("Ubicación: 12.3456, -78.9012")
         lDepth = QLabel("Profundidad: 10 m")
-        # Mostrar las fechas de inicio y fin en formato de idioma castellano
-        # Formatear las fechas al idioma castellano
-        formatted_start_date = raf.getStartDate().strftime("%d de %B de %Y")
-        formatted_end_date = raf.getEndDate().strftime("%d de %B de %Y")
+        # Añadir un slider para simular la fecha actual de la balsa desde la fecha de inicio a la fecha final        
+        sliderLayout = QHBoxLayout()
+        sliderView = QWidget()
+        sliderView.setLayout(sliderLayout)
+        lfechaSelect = QLabel("Seleccionar fecha:")        
+        sliderLayout.addWidget(lfechaSelect)
+        lcurrentDate = QLabel("Fecha actual: " + raft.getStartDate().strftime("%d de %B de %Y"))
+        sliderLayout.addWidget(lcurrentDate)
+        dateSlider = QSlider(Qt.Horizontal)
+        dateSlider.setMinimum(0)
+        dateSlider.setMaximum(100)
+        # Inicializar el slider al 25%
+        dateSlider.setValue(25)
+        self.update_current_date(25,raft,lcurrentDate)
+       
+        # Mostrar las fechas de inicio y fin en formato de idioma castellano        
+        formatted_start_date = raft.getStartDate().strftime("%d de %B de %Y")
+        formatted_end_date = raft.getEndDate().strftime("%d de %B de %Y")
         lFechas = QLabel("Fechas: {0} - {1}".format(formatted_start_date, formatted_end_date))
-        if raf.getTemperature().empty:
+        if raft.getTemperature().empty:
             lTemperature = QLabel("Temperatura: No disponible")
         else:
             # Calcular la temperatura promedio
-            temp = np.mean(raf.getTemperature()['y'])
+            temp = np.mean(raft.getTemperature()['y'])
             # Mostrar la temperatura promedio            
             lTemperature = QLabel("Temperatura: {0:.2f} °C".format(temp))
 
@@ -400,6 +425,8 @@ class dashBoardController:
         lDepth.setStyleSheet(label_style)
         lFechas.setStyleSheet(label_style)
         lTemperature.setStyleSheet(label_style)
+        lcurrentDate.setStyleSheet(label_style)
+        lfechaSelect.setStyleSheet(label_style)
 
         # Añadir los QLabel al layout
         layout.addWidget(lName)
@@ -407,7 +434,13 @@ class dashBoardController:
         layout.addWidget(lLocation)
         layout.addWidget(lDepth)
         layout.addWidget(lFechas)
-        layout.addWidget(lTemperature)       
+        layout.addWidget(lTemperature)
+        # Añadir el slider al layout
+        layout.addWidget(sliderView)        
+        layout.addWidget(dateSlider)
+
+        # Conectar el evento de cambio de valor del slider
+        dateSlider.valueChanged.connect(lambda value: self.update_current_date(value, raft, lcurrentDate))
 
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
 
