@@ -376,6 +376,9 @@ class dashBoardController:
                 timestamp = datetime.combine(current_date, datetime.min.time()).timestamp()
                 self.date_vline.setPos(timestamp)
 
+            # Actualizar las líneas de predicción
+            self._update_forecast_lines(value, raft)
+
     # Datos de la balsa
     def _draw_infopanel(self,pos_i,pos_j,raft):
         # Crear un widget para mostrar información de la balsa
@@ -497,7 +500,11 @@ class dashBoardController:
                 # Eliminar valores NaT antes de filtrar
                 df_temperature_forecast = df_temperature_forecast.dropna(subset=['ds'])
                 # Filtrar los datos de temperatura con la fecha inicial y final de la balsa
-                df_temperature_forecast = df_temperature_forecast[(df_temperature_forecast['ds'].dt.date >= raft.getStartDate()) & (df_temperature_forecast['ds'].dt.date <= raft.getEndDate())]
+                # Pero permitiendo ver un año más allá de la fecha final de la balsa si los datos existen
+                # Esto es para que la predicción no se corte en la fecha final de la balsa
+                extended_end_date = raft.getEndDate() + timedelta(days=365)
+                df_temperature_forecast = df_temperature_forecast[(df_temperature_forecast['ds'].dt.date >= raft.getStartDate()) & 
+                                                                  (df_temperature_forecast['ds'].dt.date <= extended_end_date)]
             else:
                 df_temperature_forecast = None
             # Obtener los datos de temperatura de la balsa            
@@ -535,13 +542,22 @@ class dashBoardController:
                 plot_widget.addItem(vline)
 
                 # Graficar los datos de temperatura
-                plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2))
+                plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2), name="Histórico")
                 if df_temperature_forecast is not None and not df_temperature_forecast.empty:
                     # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
-                    x_forecast = df_temperature_forecast['ds'].map(pd.Timestamp.timestamp).values
-                    y_forecast = df_temperature_forecast['yhat'].values
+                    self.x_forecast = df_temperature_forecast['ds'].map(pd.Timestamp.timestamp).values
+                    self.y_forecast = df_temperature_forecast['yhat'].values
+
+                    # Añadir los items de las líneas pero no mostrarlos aún
+                    # Se actualizarán cuando se mueva el slider
+                    self.forecast_past_line = pg.PlotDataItem([], [], pen=pg.mkPen(color='r', width=2), name="Predicción pasada")
+                    self.forecast_future_line = pg.PlotDataItem([], [], pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Predicción futura")
+
+                    plot_widget.addItem(self.forecast_past_line)
+                    plot_widget.addItem(self.forecast_future_line)
+
                     # Graficar los datos de predicción de temperatura
-                    plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='r', width=2), name="Predicción")  
+                    #plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='r', width=2), name="Predicción")  
 
                 # Ajustar los rangos de los ejes de manera dinámica
                 plot_widget.setXRange(x.min(), x.max(), padding=0.1)
@@ -549,7 +565,7 @@ class dashBoardController:
 
                 # Conectar el evento de movimiento del ratón
                 if df_temperature_forecast is not None:
-                    def on_mouse_move(event):self._mouse_move_plot(event, plot_widget, x, y, y_forecast, vline)
+                    def on_mouse_move(event):self._mouse_move_plot(event, plot_widget, x, y, self.y_forecast, vline)
                 else:            
                     def on_mouse_move(event):self._mouse_move_plot(event, plot_widget, x, y, None, vline)
 
@@ -567,6 +583,31 @@ class dashBoardController:
         
         self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)
         return plot_widget
+    
+    # Añadir un nuevo método para actualizar las líneas de predicción
+    def _update_forecast_lines(self, slider_value, raft):
+        """Actualiza las líneas de predicción según la posición actual del slider"""
+        if not hasattr(self, 'x_forecast') or not hasattr(self, 'y_forecast'):
+            return
+        
+        # Calcular la fecha actual según el valor del slider
+        start_date = raft.getStartDate()
+        end_date = raft.getEndDate()
+        delta_days = (end_date - start_date).days
+        if delta_days > 0:
+            current_day_offset = int(delta_days * (slider_value / 100))
+            current_date = start_date + timedelta(days=current_day_offset)
+        
+            # Convertir a timestamp para comparar con x_forecast
+            current_timestamp = datetime.combine(current_date, datetime.min.time()).timestamp()
+        
+            # Separar los datos en pasado y futuro según la fecha actual
+            past_mask = self.x_forecast <= current_timestamp
+            future_mask = self.x_forecast > current_timestamp
+        
+            # Actualizar las líneas de predicción
+            self.forecast_past_line.setData(self.x_forecast[past_mask], self.y_forecast[past_mask])
+            self.forecast_future_line.setData(self.x_forecast[future_mask], self.y_forecast[future_mask])
 
     # Cargar las balsas marinas
     def load_rafts_from_controller(self):        
