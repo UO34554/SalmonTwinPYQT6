@@ -385,9 +385,7 @@ class dashBoardController:
         # Añadir un slider para simular la fecha actual de la balsa desde la fecha de inicio a la fecha final        
         sliderLayout = QHBoxLayout()
         sliderView = QWidget()
-        sliderView.setLayout(sliderLayout)
-        lfechaSelect = QLabel("Seleccionar fecha:")        
-        sliderLayout.addWidget(lfechaSelect)
+        sliderView.setLayout(sliderLayout)        
         lcurrentDate = QLabel("Fecha actual: " + raft.getStartDate().strftime("%d de %B de %Y"))
         sliderLayout.addWidget(lcurrentDate)
         dateSlider = QSlider(Qt.Horizontal)
@@ -425,16 +423,15 @@ class dashBoardController:
         lDepth.setStyleSheet(label_style)
         lFechas.setStyleSheet(label_style)
         lTemperature.setStyleSheet(label_style)
-        lcurrentDate.setStyleSheet(label_style)
-        lfechaSelect.setStyleSheet(label_style)
+        lcurrentDate.setStyleSheet(label_style)        
 
         # Añadir los QLabel al layout
         layout.addWidget(lName)
         layout.addWidget(lRegion)
         layout.addWidget(lLocation)
-        layout.addWidget(lDepth)
-        layout.addWidget(lFechas)
+        layout.addWidget(lDepth)        
         layout.addWidget(lTemperature)
+        layout.addWidget(lFechas)
         # Añadir el slider al layout
         layout.addWidget(sliderView)        
         layout.addWidget(dateSlider)
