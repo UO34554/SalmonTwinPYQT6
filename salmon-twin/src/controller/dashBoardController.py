@@ -158,7 +158,7 @@ class dashBoardController:
         # Limpiar la vista
         self._clear_dashboard()        
         # Dibujar la balsa
-        self._draw_graph_temperature(0,1,raft)
+        self.temperature_plot_widget = self._draw_graph_temperature(0,1,raft)
         self._draw_graph_temperature(1,1,raft=None)
         self._draw_graph_temperature(2,1,raft=None)
         self._draw_schematic(0,0)
@@ -360,7 +360,7 @@ class dashBoardController:
     # --- Fin Grafico 2d ---
 
     # Función para actualizar la etiqueta de la fecha cuando cambia el valor del slider
-    def update_current_date(self,value,raft,lcurrentDate):
+    def _update_current_date(self,value,raft,lcurrentDate):
         start_date = raft.getStartDate()
         end_date = raft.getEndDate()
         delta_days = (end_date - start_date).days
@@ -369,6 +369,12 @@ class dashBoardController:
             current_date = start_date + timedelta(days=current_day_offset)
             formatted_date = current_date.strftime("%d de %B de %Y")
             lcurrentDate.setText("Fecha actual: " + formatted_date)
+
+            # Actualizar la posición de la línea vertical si existe
+            if hasattr(self, 'date_vline') and hasattr(self, 'temperature_plot_widget'):
+                # Calculamos la posición en timestamp
+                timestamp = datetime.combine(current_date, datetime.min.time()).timestamp()
+                self.date_vline.setPos(timestamp)
 
     # Datos de la balsa
     def _draw_infopanel(self,pos_i,pos_j,raft):
@@ -393,7 +399,7 @@ class dashBoardController:
         dateSlider.setMaximum(100)
         # Inicializar el slider al 25%
         dateSlider.setValue(25)
-        self.update_current_date(25,raft,lcurrentDate)
+        self._update_current_date(25,raft,lcurrentDate)
        
         # Mostrar las fechas de inicio y fin en formato de idioma castellano        
         formatted_start_date = raft.getStartDate().strftime("%d de %B de %Y")
@@ -437,7 +443,7 @@ class dashBoardController:
         layout.addWidget(dateSlider)
 
         # Conectar el evento de cambio de valor del slider
-        dateSlider.valueChanged.connect(lambda value: self.update_current_date(value, raft, lcurrentDate))
+        dateSlider.valueChanged.connect(lambda value: self._update_current_date(value, raft, lcurrentDate))
 
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
 
@@ -467,7 +473,7 @@ class dashBoardController:
             plot_widget.setToolTip(None)
 
     # Graficar una serie temporal
-    def _draw_graph_temperature(self,pos_i,pos_j,raft):
+    def _draw_graph_temperature(self,pos_i,pos_j,raft):        
         # Crear un PlotItem para representar la gráfica
         if raft is None:
             region = "------"
@@ -549,8 +555,18 @@ class dashBoardController:
 
                 # Conectar el evento de movimiento del ratón
                 plot_widget.scene().sigMouseMoved.connect(on_mouse_move)
+
+                # Añadir línea vertical para la fecha actual (usa un color diferente)
+                self.date_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
+                plot_widget.addItem(self.date_vline)
+        
+                # Si es la primera vez, inicializar la línea en la posición del slider (25%)
+                if hasattr(self, 'date_vline'):
+                    initial_pos = x[0] + (x[-1] - x[0]) * 0.25  # 25% del rango
+                    self.date_vline.setPos(initial_pos)
         
         self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)
+        return plot_widget
 
     # Cargar las balsas marinas
     def load_rafts_from_controller(self):        
