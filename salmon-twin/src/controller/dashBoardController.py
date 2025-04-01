@@ -601,13 +601,16 @@ class dashBoardController:
             # Convertir a timestamp para comparar con x_forecast
             current_timestamp = datetime.combine(current_date, datetime.min.time()).timestamp()
         
-            # Separar los datos en pasado y futuro según la fecha actual
-            past_mask = self.x_forecast <= current_timestamp
-            future_mask = self.x_forecast > current_timestamp
+            # Encontrar el índice del punto más cercano a la fecha actual
+            closest_index = np.argmin(abs(self.x_forecast - current_timestamp))
+        
+            # Separar los datos en pasado y futuro, incluyendo el punto de conexión en ambos
+            past_indices = np.where(self.x_forecast <= self.x_forecast[closest_index])[0]
+            future_indices = np.where(self.x_forecast >= self.x_forecast[closest_index])[0]
         
             # Actualizar las líneas de predicción
-            self.forecast_past_line.setData(self.x_forecast[past_mask], self.y_forecast[past_mask])
-            self.forecast_future_line.setData(self.x_forecast[future_mask], self.y_forecast[future_mask])
+            self.forecast_past_line.setData(self.x_forecast[past_indices], self.y_forecast[past_indices])
+            self.forecast_future_line.setData(self.x_forecast[future_indices], self.y_forecast[future_indices])
 
     # Cargar las balsas marinas
     def load_rafts_from_controller(self):        
