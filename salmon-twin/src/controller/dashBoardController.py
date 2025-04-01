@@ -363,21 +363,50 @@ class dashBoardController:
     def _update_current_date(self,value,raft,lcurrentDate):
         start_date = raft.getStartDate()
         end_date = raft.getEndDate()
-        delta_days = (end_date - start_date).days
-        if delta_days > 0:  # Protect against division by zero
-            current_day_offset = int(delta_days * (value / 100))
-            current_date = start_date + timedelta(days=current_day_offset)
-            formatted_date = current_date.strftime("%d de %B de %Y")
-            lcurrentDate.setText("Fecha actual: " + formatted_date)
+        # Variable boolean para determinar si se está en el periodo de pronóstico
+        # Si no hay datos de pronóstico, no se necesita esta variable
+        isForecast = False
+        # Si tiene datos de pronóstico, extender un año más allá de la fecha final
+        if not raft.getTemperatureForecast().empty:
+            max_forecast_date = end_date + timedelta(days=365)
+            # Ahora dividimos el rango del slider:
+            # - De 0 a 75: periodo histórico (start_date a end_date)
+            # - De 75 a 100: periodo de predicción (end_date a max_forecast_date)
+            if value <= 75:  # Estamos en el periodo histórico
+                # Mapear 0-75 al rango histórico completo
+                historical_progress = value / 75
+                delta_days = (end_date - start_date).days
+                current_day_offset = int(delta_days * historical_progress)
+                current_date = start_date + timedelta(days=current_day_offset)
+            else:  # Estamos en el periodo de predicción
+                # Mapear 75-100 al rango de predicción
+                forecast_progress = (value - 75) / 25
+                forecast_days = (max_forecast_date - end_date).days
+                current_day_offset = int(forecast_days * forecast_progress)
+                current_date = end_date + timedelta(days=current_day_offset)
+                isForecast = True  # Estamos en el periodo de pronóstico
+        else:
+            # Si no hay datos de pronóstico, simplemente mapeamos 0-100 al rango histórico
+            delta_days = (end_date - start_date).days
+            if delta_days > 0:  # Protect against division by zero
+                current_day_offset = int(delta_days * (value / 100))
+                current_date = start_date + timedelta(days=current_day_offset)
 
-            # Actualizar la posición de la línea vertical si existe
-            if hasattr(self, 'date_vline') and hasattr(self, 'temperature_plot_widget'):
-                # Calculamos la posición en timestamp
-                timestamp = datetime.combine(current_date, datetime.min.time()).timestamp()
-                self.date_vline.setPos(timestamp)
+        # Formatear la fecha y actualizar la etiqueta
+        formatted_date = current_date.strftime("%d de %B de %Y")
+        if isForecast:
+            lcurrentDate.setText("Fecha actual (predicción): " + formatted_date)
+        else:
+            lcurrentDate.setText("Fecha actual: " + formatted_date)            
 
-            # Actualizar las líneas de predicción
-            self._update_forecast_lines(value, raft)
+        # Actualizar la posición de la línea vertical si existe
+        if hasattr(self, 'date_vline') and hasattr(self, 'temperature_plot_widget'):
+            # Calculamos la posición en timestamp
+            timestamp = datetime.combine(current_date, datetime.min.time()).timestamp()
+            self.date_vline.setPos(timestamp)
+
+        # Actualizar las líneas de predicción
+        self._update_forecast_lines(value, raft, isForecast)
 
     # Datos de la balsa
     def _draw_infopanel(self,pos_i,pos_j,raft):
@@ -394,12 +423,17 @@ class dashBoardController:
         # Añadir un slider para simular la fecha actual de la balsa desde la fecha de inicio a la fecha final        
         sliderLayout = QHBoxLayout()
         sliderView = QWidget()
-        sliderView.setLayout(sliderLayout)        
+        sliderView.setLayout(sliderLayout)
+
+        # El texto inicial será para la fecha de inicio de la balsa        
         lcurrentDate = QLabel("Fecha actual: " + raft.getStartDate().strftime("%d de %B de %Y"))
         sliderLayout.addWidget(lcurrentDate)
+
+        # Configurar el slider con el rango 0-100
         dateSlider = QSlider(Qt.Horizontal)
         dateSlider.setMinimum(0)
         dateSlider.setMaximum(100)
+
         # Inicializar el slider al 25%
         dateSlider.setValue(25)
         self._update_current_date(25,raft,lcurrentDate)
@@ -585,7 +619,7 @@ class dashBoardController:
         return plot_widget
     
     # Añadir un nuevo método para actualizar las líneas de predicción
-    def _update_forecast_lines(self, slider_value, raft):
+    def _update_forecast_lines(self, slider_value, raft, isForecast=False):
         """Actualiza las líneas de predicción según la posición actual del slider"""
         if not hasattr(self, 'x_forecast') or not hasattr(self, 'y_forecast'):
             return
@@ -593,24 +627,38 @@ class dashBoardController:
         # Calcular la fecha actual según el valor del slider
         start_date = raft.getStartDate()
         end_date = raft.getEndDate()
-        delta_days = (end_date - start_date).days
-        if delta_days > 0:
-            current_day_offset = int(delta_days * (slider_value / 100))
-            current_date = start_date + timedelta(days=current_day_offset)
-        
-            # Convertir a timestamp para comparar con x_forecast
-            current_timestamp = datetime.combine(current_date, datetime.min.time()).timestamp()
-        
-            # Encontrar el índice del punto más cercano a la fecha actual
-            closest_index = np.argmin(abs(self.x_forecast - current_timestamp))
-        
-            # Separar los datos en pasado y futuro, incluyendo el punto de conexión en ambos
-            past_indices = np.where(self.x_forecast <= self.x_forecast[closest_index])[0]
-            future_indices = np.where(self.x_forecast >= self.x_forecast[closest_index])[0]
-        
-            # Actualizar las líneas de predicción
-            self.forecast_past_line.setData(self.x_forecast[past_indices], self.y_forecast[past_indices])
-            self.forecast_future_line.setData(self.x_forecast[future_indices], self.y_forecast[future_indices])
+
+        # Si estamos en modo de predicción, usar el método modificado de cálculo
+        if isForecast:
+            max_forecast_date = end_date + timedelta(days=365)
+            forecast_progress = (slider_value - 75) / 25
+            forecast_days = (max_forecast_date - end_date).days
+            current_day_offset = int(forecast_days * forecast_progress)
+            current_date = end_date + timedelta(days=current_day_offset)
+        else:
+            # Comportamiento original para fechas históricas
+            if slider_value <= 75:  # Rango histórico
+                historical_progress = slider_value / 75
+                delta_days = (end_date - start_date).days
+                current_day_offset = int(delta_days * historical_progress)
+                current_date = start_date + timedelta(days=current_day_offset)
+            else:
+                # Si no es predicción pero el slider está más allá del 75%, usar end_date
+                current_date = end_date
+    
+        # Convertir a timestamp para comparar con x_forecast
+        current_timestamp = datetime.combine(current_date, datetime.min.time()).timestamp()
+    
+        # Encontrar el índice del punto más cercano a la fecha actual
+        closest_index = np.argmin(abs(self.x_forecast - current_timestamp))
+    
+        # Separar los datos en pasado y futuro, incluyendo el punto de conexión en ambos
+        past_indices = np.where(self.x_forecast <= self.x_forecast[closest_index])[0]
+        future_indices = np.where(self.x_forecast >= self.x_forecast[closest_index])[0]
+    
+        # Actualizar las líneas de predicción
+        self.forecast_past_line.setData(self.x_forecast[past_indices], self.y_forecast[past_indices])
+        self.forecast_future_line.setData(self.x_forecast[future_indices], self.y_forecast[future_indices])
 
     # Cargar las balsas marinas
     def load_rafts_from_controller(self):        
