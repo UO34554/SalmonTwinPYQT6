@@ -13,8 +13,10 @@ import random
 import config as cfg
 import locale
 from model.seaTemperature import DataTemperature
+from model.growthModel import GrowthModel
 from utility.utility import OptionsDialog, auxTools, DataLoader
 from datetime import datetime, timedelta
+
 
 # Controlodador de la vista de dashboard
 class dashBoardController:
@@ -23,7 +25,8 @@ class dashBoardController:
         self.lastError = None
         self.raftCon = raftController
         self.tempModel = DataTemperature()
-        self.dataLoader = DataLoader()        
+        self.dataLoader = DataLoader()
+        self.growthModel = GrowthModel()       
         self.lastRaftName = None
 
         # --- Inicialización de la vista ---        
