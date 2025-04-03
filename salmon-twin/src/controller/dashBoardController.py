@@ -161,12 +161,80 @@ class dashBoardController:
         # Limpiar la vista
         self._clear_dashboard()        
         # Dibujar la balsa
-        self.temperature_plot_widget = self._draw_graph_temperature(0,1,raft)
-        self._draw_graph_temperature(1,1,raft=None)
+        self.temperature_plot_widget = self._draw_graph_temperature(0,1,raft)        
+        self._draw_growth_model(1,1,raft)
         self._draw_graph_temperature(2,1,raft=None)
         self._draw_schematic(0,0)
         self._draw_infopanel(1,0,raft)
         self._draw_schematic_3d(2,0)
+
+    # Dibujar el modelo de crecimiento de la balsa
+    def _draw_growth_model(self,pos_i,pos_j,raft):        
+        # Crear un widget de gráfico de PyQtGraph
+        plot_widget = pg.PlotWidget()
+        plot_widget.setTitle("Modelo de Crecimiento de Biomasa")
+        plot_widget.setLabel("left", "Biomasa (kg)")
+        plot_widget.showGrid(x=True, y=True)
+        plot_widget.setBackground((0, 0, 0, 140))
+    
+        # Definir una leyenda para el gráfico
+        legend = plot_widget.addLegend()
+    
+        # Agregar datos al gráfico si existen
+        if raft is None or raft.getTemperature().empty:
+            # Mostrar una 'X' roja si no hay datos de temperatura
+            plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
+        else:
+            # Obtener los datos de temperatura de la balsa
+            df_temperature = raft.getTemperature()
+            # Convertir la columna 'ds' a formato datetime si no está ya
+            df_temperature['ds'] = pd.to_datetime(df_temperature['ds'], errors='coerce')
+            # Eliminar valores NaT antes de filtrar
+            df_temperature = df_temperature.dropna(subset=['ds'])
+            # Filtrar los datos de temperatura con la fecha inicial y final de la balsa
+            df_temperature = df_temperature[(df_temperature['ds'].dt.date >= raft.getStartDate()) & 
+                                        (df_temperature['ds'].dt.date <= raft.getEndDate())]
+        
+            if df_temperature.empty:
+                # Mostrar una 'X' roja si no hay datos de temperatura
+                plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
+            else:
+                # Parámetros del modelo Thyholdt (estos valores pueden ser ajustados según tus necesidades)
+                alpha = 7000.0               # Peso máximo asintótico en gramos (7kg)
+                beta = 0.02004161            # Coeficiente de pendiente
+                mu = 17.0                    # Punto de inflexión en meses
+                mortality_rate = 0.05        # Tasa mensual de mortandad (5%)
+                initial_weight = 100.0       # Peso inicial del salmón en gramos (100g)
+                initial_number_fishes = 100  # Cantidad inicial de peces
+            
+                # Aplicar el modelo de crecimiento de Thyholdt devuelve el peso en KG
+                growth_data = self.growthModel.thyholdt_growth(df_temperature, 
+                                                         alpha, 
+                                                         beta, 
+                                                         mu, 
+                                                         mortality_rate, 
+                                                         initial_weight, 
+                                                         initial_number_fishes)
+            
+                # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
+                x = growth_data['ds'].map(pd.Timestamp.timestamp).values
+                y_biomass = growth_data['biomass'].values
+                y_number = growth_data['number_fishes'].values
+            
+                # Filtros dinámicos para los ticks
+                interval = max(1, len(x) // 7) 
+                ticks = [(x[i], self._format_date(x[i])) for i in range(0, len(x), interval)]
+            
+                # Personalizar los ticks del eje X
+                axis = plot_widget.getAxis('bottom')
+                axis.setTicks([ticks])
+                axis.setLabel("", units="")
+            
+                # Graficar los datos de biomasa, crecimiento individual y número de peces
+                plot_widget.plot(x, y_biomass, pen=pg.mkPen(color='g', width=2), name="Biomasa Total (kg)")
+                plot_widget.plot(x, y_number, pen=pg.mkPen(color='r', width=2), name="Nº de Peces")
+            
+        self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
 
     # --- Grafico 3d ---   
     def _draw_schematic_3d(self,pos_i,pos_j):
