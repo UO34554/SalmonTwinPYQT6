@@ -48,7 +48,8 @@ class dashBoardController:
         self._view.actionConfigurar.triggered.connect(self.on_raft_config)
         self._view.actionVer.triggered.connect(self.on_raft_view)
         self._view.actionCSV.triggered.connect(self.on_temperature_load_csv)
-        self._view.actionPredecir.triggered.connect(self.on_temperature_predict)       
+        self._view.actionPredecir.triggered.connect(self.on_temperature_predict)
+        self._view.actionCSVprecio.triggered.connect(self.on_price_load_csv)      
     
     # --- Eventos de la vista ---
     def show(self):
@@ -79,7 +80,7 @@ class dashBoardController:
         options = QFileDialog.Options()
         file_name = QFileDialog.getOpenFileName(
             None,
-            cfg.DASHBOARD_LOAD_FILE_MSG,
+            cfg.DASHBOARD_LOAD_TEMP_FILE_MSG,
             "",
             "CSV Files (*.csv)",
             options=options
@@ -89,6 +90,22 @@ class dashBoardController:
             self._save_raft_temperature()
         else:
             auxTools.show_error_message(cfg.DASHBOARD_LOAD_TEMP_FILE_ERROR)
+
+    def on_price_load_csv(self):
+        # Cargar el precio
+        options = QFileDialog.Options()
+        file_name = QFileDialog.getOpenFileName(
+            None,
+            cfg.DASHBOARD_LOAD_PRICE_FILE_MSG,
+            "",
+            "CSV Files (*.csv)",
+            options=options
+            )
+        if self.load_data_from_file("csv", file_name[0], ','):
+            auxTools.show_info_dialog(cfg.DASHBOARD_LOAD_PRICE_FILE_SUCCESS)
+            self._save_salmon_price()
+        else:
+            auxTools.show_error_message(cfg.DASHBOARD_LOAD_PRICE_FILE_ERROR)
 
     def on_temperature_predict(self):
         self.load_rafts_from_controller()        
@@ -129,7 +146,10 @@ class dashBoardController:
                 raft.setTemperature(tempData)
                 # Actualizar la balsa en la lista de balsas
                 if self.raftCon.update_rafts_temp(raft):
-                    self._draw_raft(self.lastRaftName)            
+                    self._draw_raft(self.lastRaftName)
+
+    def _save_salmon_price(self):
+        pass
 
     # Borra todos los widgets del layout central
     def _clear_dashboard(self):

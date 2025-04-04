@@ -103,8 +103,21 @@ QStatusBar {
     <addaction name="separator"/>
     <addaction name="actionPredecir"/>
    </widget>
+   <widget class="QMenu" name="menuPrecio">
+    <property name="title">
+     <string>Precio</string>
+    </property>
+    <widget class="QMenu" name="menuCargarPrecio">
+     <property name="title">
+      <string>Cargar</string>
+     </property>
+     <addaction name="actionCSVprecio"/>
+    </widget>
+    <addaction name="menuCargarPrecio"/>
+   </widget>
    <addaction name="menuBalsas"/>
    <addaction name="menuTemperatura"/>
+   <addaction name="menuPrecio"/>
   </widget>
   <widget class="QStatusBar" name="statusbar">
    <property name="minimumSize">
@@ -137,6 +150,11 @@ QStatusBar {
    </property>
   </action>
   <action name="actionCSV">
+   <property name="text">
+    <string>CSV</string>
+   </property>
+  </action>
+  <action name="actionCSVprecio">
    <property name="text">
     <string>CSV</string>
    </property>
