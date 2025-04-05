@@ -67,6 +67,7 @@ RAFTS_ERROR_FROM_DICT_TO_RAFT = "Error al crear balsa desde diccionario: {e}"
 #--- Cadenas para el modelo de temperatura marina en seaTemperature.py
 PARSER_ERROR_COLUMN_NAME_NOT_FOUND = "No se encontró la columna {columnName} en los datos de temperatura."
 TEMPERATURE_PARSE_ERROR = "Error de parseo al procesar los datos de temperatura."
+PRICE_PARSE_ERROR = "Error de parseo al procesar los datos de precios."
 FIT_TEMPERATURE_ERROR_REGION_NOT_FOUND = "El parámetro Region no se encuentra al predecir la temperatura."
 REGION_NOT_FOUND = "La región {0} no existe en los datos de temperatura."
 # Nombre de las columnas de los datos de temperatura

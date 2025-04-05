@@ -14,6 +14,7 @@ import config as cfg
 import locale
 from model.seaTemperature import DataTemperature
 from model.growthModel import GrowthModel
+from model.priceModel import DataPrice
 from utility.utility import OptionsDialog, auxTools, DataLoader
 from datetime import datetime, timedelta
 
@@ -25,6 +26,7 @@ class dashBoardController:
         self.lastError = None
         self.raftCon = raftController
         self.tempModel = DataTemperature()
+        self.priceModel = DataPrice()
         self.dataLoader = DataLoader()
         self.growthModel = GrowthModel()       
         self.lastRaftName = None
@@ -85,7 +87,7 @@ class dashBoardController:
             "CSV Files (*.csv)",
             options=options
             )
-        if self.load_data_from_file("csv", file_name[0], ';'):            
+        if self.load_dataTemperature_from_file("csv", file_name[0], ';'):            
             auxTools.show_info_dialog(cfg.DASHBOARD_LOAD_TEMP_FILE_SUCCESS)
             self._save_raft_temperature()
         else:
@@ -101,7 +103,7 @@ class dashBoardController:
             "CSV Files (*.csv)",
             options=options
             )
-        if self.load_data_from_file("csv", file_name[0], ','):
+        if self.load_dataPrice_from_file("csv", file_name[0], ','):
             auxTools.show_info_dialog(cfg.DASHBOARD_LOAD_PRICE_FILE_SUCCESS)
             self._save_salmon_price()
         else:
@@ -148,9 +150,11 @@ class dashBoardController:
                 if self.raftCon.update_rafts_temp(raft):
                     self._draw_raft(self.lastRaftName)
 
+    # Guardar los datos de precios en la balsa TODO
+    # Este método no está implementado
     def _save_salmon_price(self):
         pass
-
+    
     # Borra todos los widgets del layout central
     def _clear_dashboard(self):
         # Detener el temporizador para evitar actualizaciones después de eliminar widgets
@@ -762,8 +766,8 @@ class dashBoardController:
         if dialog.exec() == QDialog.Accepted:
             return dialog.get_selected_option()
         
-    # Método para cargar datos de un archivo
-    def load_data_from_file(self, file_type, filepath, separator):
+    # Método para cargar datos de temperatura de un archivo
+    def load_dataTemperature_from_file(self, file_type, filepath, separator):
         # Cargar los datos de temperatura desde un archivo CSV
         if file_type == "csv":            
                 if self.dataLoader.load_from_csv(filepath, separator):
@@ -780,5 +784,25 @@ class dashBoardController:
             pass
         elif file_type == "excel":
             # Implementar la carga de datos desde un archivo Excel 
-            pass    
+            pass
+
+    # Método para cargar datos de precio de un archivo
+    def load_dataPrice_from_file(self, file_type, filepath, separator):
+        # Cargar los datos de temperatura desde un archivo CSV
+        if file_type == "csv":            
+                if self.dataLoader.load_from_csv(filepath, separator):
+                    if self.priceModel.parsePrice(self.dataLoader.getData()):
+                        return True
+                    else:
+                        self.lastError = cfg.PRICE_PARSE_ERROR+ ":" + filepath
+                        return False
+                else:
+                    self.lastError = self.dataLoader.lastError + ":" + filepath
+                    return False
+        elif file_type == "json":
+            # Implementar la carga de datos desde un archivo JSON
+            pass
+        elif file_type == "excel":
+            # Implementar la carga de datos desde un archivo Excel 
+            pass 
     
