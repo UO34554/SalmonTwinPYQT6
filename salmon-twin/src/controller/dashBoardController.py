@@ -103,7 +103,7 @@ class dashBoardController:
             "CSV Files (*.csv)",
             options=options
             )
-        if self.load_dataPrice_from_file("csv", file_name[0], ','):
+        if self.load_dataPrice_from_file("csv", file_name[0], ';'):
             auxTools.show_info_dialog(cfg.DASHBOARD_LOAD_PRICE_FILE_SUCCESS)
             self._save_salmon_price()
         else:
@@ -774,7 +774,7 @@ class dashBoardController:
                     if self.tempModel.parseTemperature(self.dataLoader.getData()):
                         return True
                     else:
-                        self.lastError = cfg.TEMPERATURE_PARSE_ERROR+ ":" + filepath
+                        self.lastError = cfg.DASHBOARD_TEMPERATURE_PARSE_ERROR+ ":" + filepath
                         return False
                 else:
                     self.lastError = self.dataLoader.lastError + ":" + filepath
@@ -794,7 +794,7 @@ class dashBoardController:
                     if self.priceModel.parsePrice(self.dataLoader.getData()):
                         return True
                     else:
-                        self.lastError = cfg.PRICE_PARSE_ERROR+ ":" + filepath
+                        self.lastError = cfg.DASHBOARD_PRICE_PARSE_ERROR+ ":" + filepath
                         return False
                 else:
                     self.lastError = self.dataLoader.lastError + ":" + filepath

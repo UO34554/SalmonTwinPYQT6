@@ -41,6 +41,8 @@ DASHBOARD_GRAPH_MAINSTRUCTURE_MSG = "Estructura Flotante Principal"
 DASHBOARD_GRAPH_NET_MSG = "Red de la Jaula"
 DASHBOARD_GRAPH_PILLARS_MSG = "Soporte de la Balsa"
 DASHBOARD_GRAPH_ANCHOR_MSG = "Anclaje"
+DASHBOARD_TEMPERATURE_PARSE_ERROR = "Error de parseo al procesar los datos de temperatura."
+DASHBOARD_PRICE_PARSE_ERROR = "Error de parseo al procesar los datos de precios."
 
 #--- Datos de configuración de utilidades
 UTILITY_DATA_LOAD_FILE_NOT_FOUND_MESSAGE = "Error al cargar los datos: archivo no encontrado."
@@ -63,12 +65,13 @@ RAFTS_ERROR_PARSER_END_DATE = "Error al convertir fecha de fin: {e}"
 RAFTS_ERROR_PARSER_TEMPERATURE = "Error al convertir los datos de temperatura: {e}"
 RAFTS_ERROR_PARSER_TEMPERATURE_FORECAST = "Error al convertir los datos de predicción de temperatura: {e}"
 RAFTS_ERROR_FROM_DICT_TO_RAFT = "Error al crear balsa desde diccionario: {e}"
+#--- Cadenas para el modelo de precios en priceModel.py
+PRICEMODEL_ERROR_PARSER_DATE = "No fue posible convertir a una fecha válida"
+PRICEMODEL_ERROR_PARSER_PRICE = "No fue posible convertir el precio a un número real válido"
+PRICEMODEL_ERROR_PARSER_COLUMNS_ERROR = "The required columns 'Year', 'Week', 'Month' and 'EUR_kg' are not present in the data."
 
 #--- Cadenas para el modelo de temperatura marina en seaTemperature.py
 PARSER_ERROR_COLUMN_NAME_NOT_FOUND = "No se encontró la columna {columnName} en los datos de temperatura."
-TEMPERATURE_PARSE_ERROR = "Error de parseo al procesar los datos de temperatura."
-PRICE_PARSE_ERROR = "Error de parseo al procesar los datos de precios."
-FIT_TEMPERATURE_ERROR_REGION_NOT_FOUND = "El parámetro Region no se encuentra al predecir la temperatura."
 REGION_NOT_FOUND = "La región {0} no existe en los datos de temperatura."
 # Nombre de las columnas de los datos de temperatura
 TEMP_COLUMN_NAMES = [
