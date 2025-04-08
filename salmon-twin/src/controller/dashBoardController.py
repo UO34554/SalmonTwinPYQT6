@@ -104,10 +104,10 @@ class dashBoardController:
             options=options
             )
         if self.load_dataPrice_from_file("csv", file_name[0], ';'):
-            auxTools.show_info_dialog(cfg.DASHBOARD_LOAD_PRICE_FILE_SUCCESS)
-            self._save_salmon_price()
-        else:
-            auxTools.show_error_message(cfg.DASHBOARD_LOAD_PRICE_FILE_ERROR)
+            if self._save_salmon_price():                
+                auxTools.show_info_dialog(cfg.DASHBOARD_LOAD_PRICE_FILE_SUCCESS)
+                return            
+        auxTools.show_error_message(cfg.DASHBOARD_LOAD_PRICE_FILE_ERROR)
 
     def on_temperature_predict(self):
         self.load_rafts_from_controller()        
@@ -150,10 +150,9 @@ class dashBoardController:
                 if self.raftCon.update_rafts_temp(raft):
                     self._draw_raft(self.lastRaftName)
 
-    # Guardar los datos de precios en la balsa TODO
-    # Este método no está implementado
+    # Guardar los datos de precios de salmón en un archivo JSON   
     def _save_salmon_price(self):
-        pass
+        return self.priceModel.save_to_json(cfg.PRICEMODEL_CONFIG_FILE)
     
     # Borra todos los widgets del layout central
     def _clear_dashboard(self):

@@ -43,7 +43,8 @@ DASHBOARD_GRAPH_PILLARS_MSG = "Soporte de la Balsa"
 DASHBOARD_GRAPH_ANCHOR_MSG = "Anclaje"
 DASHBOARD_TEMPERATURE_PARSE_ERROR = "Error de parseo al procesar los datos de temperatura."
 DASHBOARD_PRICE_PARSE_ERROR = "Error de parseo al procesar los datos de precios."
-
+DASHBOARD_PRICE_DATA_SAVE_OK = "Datos de precios guardados correctamente."
+DASHBOARD_PRICE_DATA_SAVE_ERROR = "Error al guardar los datos de precios: {error}"
 #--- Datos de configuración de utilidades
 UTILITY_DATA_LOAD_FILE_NOT_FOUND_MESSAGE = "Error al cargar los datos: archivo no encontrado."
 UTILITY_DATA_LOAD_EXCEPTION_MENSSAGE = "Error al cargar los datos: "
@@ -68,8 +69,11 @@ RAFTS_ERROR_FROM_DICT_TO_RAFT = "Error al crear balsa desde diccionario: {e}"
 #--- Cadenas para el modelo de precios en priceModel.py
 PRICEMODEL_ERROR_PARSER_DATE = "No fue posible convertir a una fecha válida"
 PRICEMODEL_ERROR_PARSER_PRICE = "No fue posible convertir el precio a un número real válido"
-PRICEMODEL_ERROR_PARSER_COLUMNS_ERROR = "The required columns 'Year', 'Week', 'Month' and 'EUR_kg' are not present in the data."
-
+PRICEMODEL_ERROR_PARSER_COLUMNS_ERROR = "Las columnas:'Year', 'Week', 'Month' y 'EUR_kg' no se encuentran en los datos."
+PRICEMODEL_PRICE_EMPTY_DATA_SAVE_ERROR = "No hay datos de precios para guardar"
+PRICEMODEL_PRICE_JSON_SAVE_ERROR = "Error al guardar los datos de precios: {e}"
+PRICEMODEL_PRICE_JSON_LOAD_ERROR = "Error al cargar los datos de precios: {e}"
+PRICEMODEL_CONFIG_FILE = os.path.join(CONFIG_DIR, "prices.json")
 #--- Cadenas para el modelo de temperatura marina en seaTemperature.py
 PARSER_ERROR_COLUMN_NAME_NOT_FOUND = "No se encontró la columna {columnName} en los datos de temperatura."
 REGION_NOT_FOUND = "La región {0} no existe en los datos de temperatura."

@@ -12,6 +12,10 @@ salmon_monitor.log
 salmon-twin/config/rafts.json
 */config/rafts.json
 **/config/rafts.json
+# Cubrir todas las posibles ubicaciones del archivo rafts.json
+salmon-twin/config/prices.json
+*/config/prices.json
+**/config/prices.json
 
 # Distribución / empaquetado
 dist/
