@@ -5,12 +5,24 @@ Gestor unificado de balsas marinas para el sistema Salmon Twin
 import pandas as pd
 from datetime import datetime
 import config as cfg
+import os
 
 class DataPrice:
     def __init__(self):        
         self._price_data_raw = None
         self._price_data = None
         self.lastError = None
+
+    """
+    Carga los datos iniciales desde el archivo de configuración
+    si existe.    
+    Retorna:
+    bool: True si se cargaron los datos, False en caso contrario
+    """
+    def load_initial_data(self):
+        if os.path.exists(cfg.PRICEMODEL_CONFIG_FILE):
+            return self.load_from_json(cfg.PRICEMODEL_CONFIG_FILE)
+        return False
 
     # Se parsea el dataframe de precios y se convierte a un formato adecuado para su uso
     # Se espera que el dataframe contenga las columnas 'Year', 'Week' y 'EUR_kg'

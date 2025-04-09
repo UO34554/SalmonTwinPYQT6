@@ -46,6 +46,11 @@ class dashBoardController:
         # variable para rastrear la conexión del temporizador
         self.timer_connected = False
 
+        # Cargar datos iniciales de los precios si existen
+        self.priceModel = DataPrice()
+        if not self.priceModel.load_initial_data():
+            self.lastError = self.priceModel.lastError
+
         # --- Conectar señales de la vista con manejadores de eventos ---
         self._view.actionConfigurar.triggered.connect(self.on_raft_config)
         self._view.actionVer.triggered.connect(self.on_raft_view)
@@ -186,10 +191,70 @@ class dashBoardController:
         # Dibujar la balsa
         self.temperature_plot_widget = self._draw_graph_temperature(0,1,raft)        
         self._draw_growth_model(1,1,raft)
-        self._draw_graph_temperature(2,1,raft=None)
+        self._draw_price(2,1,raft)
         self._draw_schematic(0,0)
         self._draw_infopanel(1,0,raft)
         self._draw_schematic_3d(2,0)
+
+    # Dibujar el precio del salmón
+    def _draw_price(self,pos_i,pos_j,raft):
+        # Crear un widget de gráfico de PyQtGraph
+        plot_widget = pg.PlotWidget(title="Precio del Salmón")
+        plot_widget.setLabels(left="EUR/kg", bottom="Fechas")
+        plot_widget.showGrid(x=True, y=True)
+        plot_widget.setBackground((0, 0, 0, 140))
+    
+        # Obtener los datos de precios
+        price_data = self.priceModel.getPriceData()
+    
+        if price_data is None or price_data.empty:
+            # Mostrar una 'X' roja si no hay datos de precios
+            plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
+            # Agregar el widget al layout
+            self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
+            return
+        else:
+            # Filtrar los datos según las fechas de la balsa
+            start_date = raft.getStartDate()
+            end_date = raft.getEndDate()
+        
+        # Convertir la columna 'timestamp' a formato datetime si no está ya
+        price_data['timestamp'] = pd.to_datetime(price_data['timestamp'], errors='coerce')
+        # Eliminar valores NaT antes de filtrar
+        price_data = price_data.dropna(subset=['timestamp'])
+        
+        # Filtrar los datos de precio entre las fechas de la balsa
+        filtered_price = price_data[(price_data['timestamp'].dt.date >= start_date) & 
+                                   (price_data['timestamp'].dt.date <= end_date)]
+        
+        if filtered_price.empty:
+            # Mostrar una 'X' roja si no hay datos en el rango de fechas
+            plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
+            plot_widget.setTitle("Precio del Salmón (sin datos en el rango seleccionado)")
+        else:
+            # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
+            x = filtered_price['timestamp'].map(pd.Timestamp.timestamp).values
+            y = filtered_price['EUR_kg'].values
+            
+            # Filtros dinámicos para los ticks
+            interval = max(1, len(x) // 7)
+            ticks = [(x[i], self._format_date(x[i])) for i in range(0, len(x), interval)]
+            
+            # Personalizar los ticks del eje X
+            axis = plot_widget.getAxis('bottom')
+            axis.setTicks([ticks])
+            # Cambiar el label del eje X de manera específica
+            axis.setLabel("", units="")
+
+            # Graficar los datos de precio
+            plot_widget.plot(x, y, pen=pg.mkPen(color='g', width=2), name="Precio EUR/kg")
+            
+            # Ajustar los rangos de los ejes de manera dinámica
+            plot_widget.setXRange(x.min(), x.max(), padding=0.1)
+            plot_widget.setYRange(y.min(), y.max(), padding=0.1)
+
+        # Agregar el widget al layout
+        self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)    
 
     # Dibujar el modelo de crecimiento de la balsa
     def _draw_growth_model(self,pos_i,pos_j,raft):        
