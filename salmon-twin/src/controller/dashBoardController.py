@@ -206,6 +206,9 @@ class dashBoardController:
     
         # Obtener los datos de precios
         price_data = self.priceModel.getPriceData()
+        # Depuración
+        self.priceModel.fit_price()
+        price_data_forescast = self.priceModel.getPriceDataForecast()
     
         if price_data is None or price_data.empty:
             # Mostrar una 'X' roja si no hay datos de precios
@@ -235,6 +238,16 @@ class dashBoardController:
             # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
             x = filtered_price['timestamp'].map(pd.Timestamp.timestamp).values
             y = filtered_price['EUR_kg'].values
+
+            if price_data_forescast is not None and not price_data_forescast.empty:                
+                # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
+                x_forecast = price_data_forescast['ds'].map(pd.Timestamp.timestamp).values
+                y_forecast = price_data_forescast['y'].values
+                # Graficar los datos de precio pronosticados
+                plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='y', width=2, style=Qt.DashLine), 
+                                 name="Precio Pronosticado EUR/kg")
+                plot_widget.setXRange(x_forecast.min(), x_forecast.max(), padding=0.1)
+                plot_widget.setYRange(y_forecast.min(), y_forecast.max(), padding=0.1)
             
             # Filtros dinámicos para los ticks
             interval = max(1, len(x) // 7)
@@ -247,11 +260,11 @@ class dashBoardController:
             axis.setLabel("", units="")
 
             # Graficar los datos de precio
-            plot_widget.plot(x, y, pen=pg.mkPen(color='g', width=2), name="Precio EUR/kg")
+            #plot_widget.plot(x, y, pen=pg.mkPen(color='g', width=2), name="Precio EUR/kg")
             
             # Ajustar los rangos de los ejes de manera dinámica
-            plot_widget.setXRange(x.min(), x.max(), padding=0.1)
-            plot_widget.setYRange(y.min(), y.max(), padding=0.1)
+            #plot_widget.setXRange(x.min(), x.max(), padding=0.1)
+            #plot_widget.setYRange(y.min(), y.max(), padding=0.1)
 
         # Agregar el widget al layout
         self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)    
