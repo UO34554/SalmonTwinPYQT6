@@ -204,6 +204,9 @@ class dashBoardController:
         plot_widget.showGrid(x=True, y=True)
         plot_widget.setBackground((0, 0, 0, 140))
     
+        # Definir una leyenda para el gráfico
+        plot_widget.addLegend()
+
         # Obtener los datos de precios
         price_data = self.priceModel.getPriceData()
         # Depuración
@@ -243,28 +246,26 @@ class dashBoardController:
                 # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
                 x_forecast = price_data_forescast['ds'].map(pd.Timestamp.timestamp).values
                 y_forecast = price_data_forescast['y'].values
+
+                price_data_test = self.priceModel.getPriceDataTest()
+                x_test = price_data_test['ds'].map(pd.Timestamp.timestamp).values
+                y_test = price_data_test['y'].values
                 # Graficar los datos de precio pronosticados
                 plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='y', width=2, style=Qt.DashLine), 
                                  name="Precio Pronosticado EUR/kg")
-                plot_widget.setXRange(x_forecast.min(), x_forecast.max(), padding=0.1)
-                plot_widget.setYRange(y_forecast.min(), y_forecast.max(), padding=0.1)
-            
-            # Filtros dinámicos para los ticks
-            interval = max(1, len(x) // 7)
-            ticks = [(x[i], self._format_date(x[i])) for i in range(0, len(x), interval)]
-            
-            # Personalizar los ticks del eje X
-            axis = plot_widget.getAxis('bottom')
-            axis.setTicks([ticks])
-            # Cambiar el label del eje X de manera específica
-            axis.setLabel("", units="")
+                plot_widget.plot(x_test, y_test, pen=pg.mkPen(color='b', width=2), 
+                                 name="Precio Test EUR/kg")
+                plot_widget.setXRange(x_test.min(), x_test.max(), padding=0.1)
+                plot_widget.setYRange(y_test.min(), y_test.max(), padding=0.1)
 
-            # Graficar los datos de precio
-            #plot_widget.plot(x, y, pen=pg.mkPen(color='g', width=2), name="Precio EUR/kg")
-            
-            # Ajustar los rangos de los ejes de manera dinámica
-            #plot_widget.setXRange(x.min(), x.max(), padding=0.1)
-            #plot_widget.setYRange(y.min(), y.max(), padding=0.1)
+                # Filtros dinámicos para los ticks
+                interval = max(1, len(x_test) // 7)
+                ticks = [(x_test[i], self._format_date(x_test[i])) for i in range(0, len(x_test), interval)]
+
+                # Personalizar los ticks del eje X
+                axis = plot_widget.getAxis('bottom')
+                axis.setTicks([ticks])
+                axis.setLabel("", units="")
 
         # Agregar el widget al layout
         self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)    
@@ -279,7 +280,7 @@ class dashBoardController:
         plot_widget.setBackground((0, 0, 0, 140))
     
         # Definir una leyenda para el gráfico
-        legend = plot_widget.addLegend()
+        plot_widget.addLegend()
     
         # Agregar datos al gráfico si existen
         if raft is None or raft.getTemperature().empty:

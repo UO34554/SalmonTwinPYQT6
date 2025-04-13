@@ -7,13 +7,15 @@ from datetime import datetime
 import config as cfg
 import os
 from statsforecast import StatsForecast
-from statsforecast.models import AutoARIMA
+from statsforecast.models import AutoARIMA, ARIMA
 
 class DataPrice:
     def __init__(self):        
         self._price_data_raw = None
         self._price_data = None
         self._price_data_forescast = None
+        self._price_data_train = None
+        self._price_data_test = None
         self.lastError = None
 
     """
@@ -67,6 +69,14 @@ class DataPrice:
     """
     def getPriceData(self):       
         return self._price_data
+    
+    """
+        Retorna los datos de precios procesados para el conjunto de prueba
+        Retorna:
+        pd.DataFrame: DataFrame con los datos de precios procesados para el conjunto de prueba
+        """
+    def getPriceDataTest(self):        
+        return self._price_data_test
     
     """
         Retorna los datos de precios procesados
@@ -152,31 +162,14 @@ class DataPrice:
             })           
 
             # #############################################################################            
-            # Define el porcentaje para el conjunto de entrenamiento (ejemplo: 90%)
-            train_size = int(len(data) * 0.9)
+            # Define el porcentaje para el conjunto de entrenamiento
+            train_size = int(len(data) * 0.8)
             # Divide el DataFrame
             train = data.iloc[:train_size]
-            test = data.iloc[train_size:]            
-
-            # Fit a simple auto_arima model
-            #with warnings.catch_warnings():
-                #warnings.simplefilter('ignore', FutureWarning)
-                #arima = pm.auto_arima(
-                #    train['y'],
-                #    trace=True,
-                #    seasonal=True,  #Seasonality
-                #    m=52,  # Seasonal period (weekly data)
-                #    D=1,   # Seasonal difference order (usually 0 or 1)
-                #    maxiter=500, # Increased iterations
-                #    suppress_warnings=False, # Show warnings
-                #    error_action='warn', # Show warnings                    
-                #)
-                #arima = pm.ARIMA(order=(2,1,0),seasonal_order=(2,1,0,52))
-                #->arima = pm.ARIMA(order=(3,0,0),seasonal_order=(1,1,0,52))
-                #arima.fit(train['y'])
-
+            test = data.iloc[train_size:]
+            
             sf = StatsForecast(
-                models=[AutoARIMA()],
+                models=[ARIMA(order=(3, 0, 0), season_length=52, seasonal_order=(1, 1, 0))],
                 freq='W',
                 )
 
@@ -198,7 +191,8 @@ class DataPrice:
 
             # 3. Añadir las fechas al DataFrame de predicción
             self._price_data_forescast['ds'] = future_dates
-            self._price_data_forescast['y'] = self._price_data_forescast['AutoARIMA'].astype(float)  # Convertir a float si es necesario
+            self._price_data_forescast['y'] = self._price_data_forescast['ARIMA'].astype(float)  # Convertir a float si es necesario
+            self._price_data_test = test.copy()
 
         except ValueError as e:
             print(f"Error: {e}")
