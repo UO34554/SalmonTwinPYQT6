@@ -7,7 +7,7 @@ from datetime import datetime
 import config as cfg
 import os
 from statsforecast import StatsForecast
-from statsforecast.models import AutoARIMA, ARIMA
+from statsforecast.models import ARIMA
 
 class DataPrice:
     def __init__(self):        
@@ -163,7 +163,7 @@ class DataPrice:
 
             # #############################################################################            
             # Define el porcentaje para el conjunto de entrenamiento
-            train_size = int(len(data) * 0.8)
+            train_size = int(len(data) * 0.92)
             # Divide el DataFrame
             train = data.iloc[:train_size]
             test = data.iloc[train_size:]

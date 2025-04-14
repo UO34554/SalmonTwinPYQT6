@@ -1,1 +1,15 @@
-PySide6
+# Interfaz gráfica
+PySide6==6.9.0
+pyqtgraph==0.13.7
+
+# Análisis de datos
+pandas==2.2.3
+numpy==2.2.4
+
+# Modelos estadísticos y predicción
+statsforecast==2.0.1
+prophet==1.1.6
+
+# Versión de python
+python==3.11.9
+
