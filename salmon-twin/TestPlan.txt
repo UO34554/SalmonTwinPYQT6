@@ -1,0 +1,142 @@
+# Plan de Pruebas para los Modelos de SalmonTwin
+
+Un plan de pruebas completo para los modelos del proyecto SalmonTwin debe incluir diferentes niveles y tipos de pruebas que garanticen la calidad y robustez del software. A continuación se presenta un enfoque estructurado:
+
+## 1. Pruebas Unitarias
+
+### 1.1. `DataPrice` (priceModel.py)
+- **Prueba de carga de datos**:
+  - Verificar que `load_from_json()` carga correctamente datos válidos
+  - Comprobar el manejo de errores con archivos no existentes o mal formateados
+  - Validar la conversión correcta de fechas y valores numéricos
+
+- **Prueba de predicción ARIMA**:
+  - Verificar que `fit_price()` genera predicciones consistentes
+  - Comprobar que los formatos de salida sean correctos
+  - Validar el comportamiento con diferentes tamaños de conjuntos de entrenamiento
+
+### 1.2. `DataTemperature` (seaTemperature.py)
+- **Prueba de parseo**:
+  - Verificar que `parseTemperature()` maneja correctamente los datos de entrada
+  - Comprobar la validación de columnas requeridas
+  - Validar la conversión de fechas desde formato sueco
+
+- **Prueba de predicción Prophet**:
+  - Verificar que `fitTempData()` genera predicciones consistentes
+  - Validar el comportamiento con diferentes parámetros de configuración
+
+### 1.3. `GrowthModel` (growthModel.py)
+- **Prueba de función Thyholdt**:
+  - Verificar que `_thyholdt_function()` calcula correctamente el crecimiento
+  - Comprobar casos límite (t=0, temperatura extrema)
+
+- **Prueba de cálculo de mortalidad**:
+  - Verificar que `_mortality()` calcula correctamente la tasa de supervivencia
+
+- **Prueba de modelo completo**:
+  - Verificar que `thyholdt_growth()` genera resultados consistentes para toda la serie temporal
+  - Validar el comportamiento con diferentes parámetros de entrada
+
+## 2. Pruebas de Integración
+
+- **Integración de modelos con controladores**:
+  - Verificar la correcta comunicación entre los modelos y los controladores
+  - Comprobar que los datos fluyen correctamente entre componentes
+
+- **Integración de modelos entre sí**:
+  - Verificar que el modelo de temperatura alimenta correctamente al modelo de crecimiento
+  - Comprobar la integración del modelo de precios con las fechas de las balsas
+
+## 3. Pruebas de Sistema
+
+- **Flujo de datos completo**:
+  - Verificar que los datos fluyen correctamente desde la entrada hasta la visualización
+  - Comprobar que las predicciones se muestran correctamente en las gráficas
+
+- **Rendimiento del sistema**:
+  - Medir el tiempo de respuesta para la generación de predicciones
+  - Evaluar el uso de memoria con diferentes tamaños de datos
+
+## 4. Herramientas y Marcos para Implementar las Pruebas
+
+### 4.1. Framework de pruebas
+```python
+# Ejemplo con pytest para pruebas unitarias
+# tests/test_priceModel.py
+
+import pytest
+import pandas as pd
+from datetime import datetime
+from model.priceModel import DataPrice
+
+@pytest.fixture
+def sample_price_data():
+    # Crear datos de prueba
+    return pd.DataFrame({
+        'timestamp': [datetime(2022, 1, 1), datetime(2022, 1, 8)],
+        'EUR_kg': [7.5, 8.0]
+    })
+
+def test_load_from_json(tmp_path, sample_price_data):
+    # Guardar datos de muestra en un archivo temporal
+    test_file = tmp_path / "test_prices.json"
+    sample_price_data.to_json(test_file, orient='records', date_format='iso')
+    
+    # Instanciar el modelo y cargar datos
+    price_model = DataPrice()
+    result = price_model.load_from_json(test_file)
+    
+    # Verificar el resultado
+    assert result == True
+    assert price_model._price_data is not None
+    assert len(price_model._price_data) == 2
+```
+
+### 4.2. Métricas de evaluación
+```python
+# Ejemplo para evaluar la precisión del modelo ARIMA
+def test_arima_prediction_accuracy():
+    price_model = DataPrice()
+    price_model.load_from_json("sample_data.json")
+    
+    # Preparar datos históricos conocidos
+    train_data = price_model._price_data.iloc[:-10]  # Usar todos menos los últimos 10 puntos
+    test_data = price_model._price_data.iloc[-10:]   # Últimos 10 puntos para validación
+    
+    # Entrenar el modelo con datos parciales
+    price_model._price_data = train_data
+    price_model.fit_price()
+    
+    # Comparar predicciones con valores reales
+    predictions = price_model._price_data_forescast
+    
+    # Calcular métricas de error
+    mape = calculate_mape(test_data['EUR_kg'].values, predictions['y'].values)
+    rmse = calculate_rmse(test_data['EUR_kg'].values, predictions['y'].values)
+    
+    # Verificar que el error esté por debajo de un umbral aceptable
+    assert mape < 15.0  # Error porcentual absoluto medio menor al 15%
+    assert rmse < 0.8   # Error cuadrático medio menor a 0.8
+```
+
+## 5. Estrategias de Automatización
+
+1. **Integración continua**:
+   - Configurar GitHub Actions o Jenkins para ejecutar pruebas automáticas
+   - Verificar que todas las pruebas pasen antes de aceptar nuevas contribuciones
+
+2. **Informes de cobertura**:
+   - Usar herramientas como coverage.py para evaluar la cobertura de código
+   - Establecer un umbral mínimo de cobertura (e.g., 80%)
+
+3. **Pruebas de regresión**:
+   - Mantener un conjunto de datos de referencia
+   - Verificar automáticamente que los resultados de los modelos sean consistentes con versiones anteriores
+
+## 6. Documentación de Pruebas
+
+- Crear documentación detallada de cada caso de prueba
+- Mantener un registro de resultados de pruebas y métricas de rendimiento
+- Documentar procedimientos para ejecutar pruebas manuales
+
+La implementación de este plan de pruebas ayudará a garantizar la robustez y precisión de los modelos utilizados en el proyecto SalmonTwin.
