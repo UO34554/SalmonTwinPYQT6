@@ -114,6 +114,7 @@ QStatusBar {
      <addaction name="actionCSVprecio"/>
     </widget>
     <addaction name="menuCargarPrecio"/>
+    <addaction name="actionPredecirPrecio"/>
    </widget>
    <addaction name="menuBalsas"/>
    <addaction name="menuTemperatura"/>
@@ -157,6 +158,11 @@ QStatusBar {
   <action name="actionCSVprecio">
    <property name="text">
     <string>CSV</string>
+   </property>
+  </action>
+  <action name="actionPredecirPrecio">
+   <property name="text">
+    <string>Predecir</string>
    </property>
   </action>
  </widget>

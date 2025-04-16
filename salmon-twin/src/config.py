@@ -45,6 +45,8 @@ DASHBOARD_TEMPERATURE_PARSE_ERROR = "Error de parseo al procesar los datos de te
 DASHBOARD_PRICE_PARSE_ERROR = "Error de parseo al procesar los datos de precios."
 DASHBOARD_PRICE_DATA_SAVE_OK = "Datos de precios guardados correctamente."
 DASHBOARD_PRICE_DATA_SAVE_ERROR = "Error al guardar los datos de precios: {error}"
+DASHBOARD_PREDICT_PRICE_SUCCESS = "Predicción de precios exitosa."
+DASHBOARD_PREDICT_PRICE_ERROR = "Error al predecir los precios."
 #--- Datos de configuración de utilidades
 UTILITY_DATA_LOAD_FILE_NOT_FOUND_MESSAGE = "Error al cargar los datos: archivo no encontrado."
 UTILITY_DATA_LOAD_EXCEPTION_MENSSAGE = "Error al cargar los datos: "
@@ -74,6 +76,8 @@ PRICEMODEL_PRICE_EMPTY_DATA_SAVE_ERROR = "No hay datos de precios para guardar"
 PRICEMODEL_PRICE_JSON_SAVE_ERROR = "Error al guardar los datos de precios: {e}"
 PRICEMODEL_PRICE_JSON_LOAD_ERROR = "Error al cargar los datos de precios: {e}"
 PRICEMODEL_CONFIG_FILE = os.path.join(CONFIG_DIR, "prices.json")
+PRICEMODEL_FIT_NO_DATA = "Los datos de precio no se han cargado. Se cancela ARIMA."
+PRICEMODEL_FIT_ERROR = "Error: {e}"
 #--- Cadenas para el modelo de temperatura marina en seaTemperature.py
 PARSER_ERROR_COLUMN_NAME_NOT_FOUND = "No se encontró la columna {columnName} en los datos de temperatura."
 REGION_NOT_FOUND = "La región {0} no existe en los datos de temperatura."

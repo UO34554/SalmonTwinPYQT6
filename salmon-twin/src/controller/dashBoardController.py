@@ -56,7 +56,8 @@ class dashBoardController:
         self._view.actionVer.triggered.connect(self.on_raft_view)
         self._view.actionCSV.triggered.connect(self.on_temperature_load_csv)
         self._view.actionPredecir.triggered.connect(self.on_temperature_predict)
-        self._view.actionCSVprecio.triggered.connect(self.on_price_load_csv)      
+        self._view.actionCSVprecio.triggered.connect(self.on_price_load_csv)
+        self._view.actionPredecirPrecio.triggered.connect(self.on_price_predict)      
     
     # --- Eventos de la vista ---
     def show(self):
@@ -140,7 +141,19 @@ class dashBoardController:
                     auxTools.show_error_message(cfg.DASHBOARD_PREDICT_TEMP_ERROR)
         else:
             # Mostrar mensaje de error temporal
-            self._view.statusbar.showMessage(cfg.DASHBOARD_SELECT_RAFT_ERORR_MESSAGE)        
+            self._view.statusbar.showMessage(cfg.DASHBOARD_SELECT_RAFT_ERORR_MESSAGE)
+
+    def on_price_predict(self):
+        # Implementar la predicción de precios de salmón        
+        if self.priceModel.fit_price():
+            # Guardar la predicción de precios en un archivo JSON
+            
+            auxTools.show_info_dialog(cfg.DASHBOARD_PREDICT_PRICE_SUCCESS)
+        else:
+            if self.priceModel.lastError is not None:
+                auxTools.show_error_message(self.priceModel.lastError)
+            else:
+                auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR)       
 
     # --- Métodos de la lógica de negocio
     def _save_raft_temperature(self):

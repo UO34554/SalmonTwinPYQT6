@@ -142,9 +142,10 @@ class DataPrice:
             return False
         
     def fit_price(self):
+        self.lastError = None
         if self._price_data is None:
-             print("The price data is not loaded. Arima is cancelled.")
-             return
+             self.lastError = cfg.PRICEMODEL_FIT_NO_DATA
+             return False
         try:
             # Filter data based on the selected dates
             #start_date = '2006-01-01'
@@ -193,6 +194,8 @@ class DataPrice:
             self._price_data_forescast['ds'] = future_dates
             self._price_data_forescast['y'] = self._price_data_forescast['ARIMA'].astype(float)  # Convertir a float si es necesario
             self._price_data_test = test.copy()
+            return True
 
         except ValueError as e:
-            print(f"Error: {e}")
+            self.lastError= cfg.PRICEMODEL_FIT_ERROR.format(e)
+            return False
