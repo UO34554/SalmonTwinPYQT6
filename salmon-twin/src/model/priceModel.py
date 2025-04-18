@@ -10,12 +10,16 @@ from statsforecast import StatsForecast
 from statsforecast.models import ARIMA
 
 class DataPrice:
-    def __init__(self):        
+    def __init__(self):
+        # Datos de precio en bruto        
         self._price_data_raw = None
+        # Datos de precio procesados
         self._price_data = None
+        # Datos de precio de la predicción
         self._price_data_forescast = None
         self._price_data_train = None
         self._price_data_test = None
+        # Datos del ultimo error
         self.lastError = None
 
     """
@@ -26,8 +30,18 @@ class DataPrice:
     """
     def load_initial_data(self):
         if os.path.exists(cfg.PRICEMODEL_CONFIG_FILE):
-            return self.load_from_json(cfg.PRICEMODEL_CONFIG_FILE)
-        return False
+            if not self.load_from_json_price(cfg.PRICEMODEL_CONFIG_FILE):                
+                return False
+        if os.path.exists(cfg.PRICEMODEL_FORECAST_CONFIG_FILE):
+            if not self.load_from_json_forecast_price(cfg.PRICEMODEL_FORECAST_CONFIG_FILE):
+                return False
+        if os.path.exists(cfg.PRICEMODEL_FORECAST_CONFIG_FILE.replace('.json', '_train.json')):
+            if not self.load_from_json_forecast_train_price(cfg.PRICEMODEL_FORECAST_CONFIG_FILE.replace('.json', '_train.json')):
+                return False
+        if os.path.exists(cfg.PRICEMODEL_FORECAST_CONFIG_FILE.replace('.json', '_test.json')):
+            if not self.load_from_json_forecast_test_price(cfg.PRICEMODEL_FORECAST_CONFIG_FILE.replace('.json', '_test.json')):
+                return False
+        return True
 
     # Se parsea el dataframe de precios y se convierte a un formato adecuado para su uso
     # Se espera que el dataframe contenga las columnas 'Year', 'Week' y 'EUR_kg'
@@ -93,7 +107,7 @@ class DataPrice:
     Retorna:
     bool: True si se guardó correctamente, False en caso contrario
     """    
-    def save_to_json(self, filepath):    
+    def save_price_to_json(self, filepath):    
         try:
             if self._price_data is None or self._price_data.empty:
                 self.lastError = cfg.PRICEMODEL_PRICE_EMPTY_DATA_SAVE_ERROR
@@ -116,6 +130,45 @@ class DataPrice:
             self.lastError = cfg.PRICEMODEL_PRICE_JSON_SAVE_ERROR.format(e)
             return False
     
+    def save_forescast_price_to_json(self, filepath):
+        try:
+            self.lastError = None
+            # Verificar si hay datos de predicción de precios
+            if self._price_data_forescast is None or self._price_data_forescast.empty:
+                self.lastError = cfg.PRICEMODEL_PRICEFORECAST_EMPTY_DATA_SAVE_ERROR
+                return False
+            
+            # Crear una copia con solo las columnas necesarias
+            price_forecast_copy = self._price_data_forescast[['ds', 'y']].copy()
+            price_forescast_train_copy = self._price_data_train[['ds', 'y']].copy()
+            price_forescast_test_copy = self._price_data_test[['ds', 'y']].copy()
+
+            # Convertir la columna timestamp a formato ISO
+            if 'ds' in price_forecast_copy.columns:
+                price_forecast_copy['ds'] = price_forecast_copy['ds'].apply(
+                    lambda x: x.isoformat() if pd.notnull(x) else None
+                )
+
+            if 'ds' in price_forescast_train_copy.columns:
+                price_forescast_train_copy['ds'] = price_forescast_train_copy['ds'].apply(
+                    lambda x: x.isoformat() if pd.notnull(x) else None
+                )
+
+            if 'ds' in price_forescast_test_copy.columns:
+                price_forescast_test_copy['ds'] = price_forescast_test_copy['ds'].apply(
+                    lambda x: x.isoformat() if pd.notnull(x) else None
+                )
+
+            # Convertir a formato JSON y guardar
+            price_forecast_copy.to_json(filepath, orient='records', date_format='iso')
+            price_forescast_train_copy.to_json(filepath.replace('.json', '_train.json'), orient='records', date_format='iso')
+            price_forescast_test_copy.to_json(filepath.replace('.json', '_test.json'), orient='records', date_format='iso')
+            return True
+
+        except Exception as e:
+            self.lastError = cfg.PRICEMODEL_PRICEFORECAST_JSON_SAVE_ERROR.format(e)
+            return False
+
     """
     Carga los datos de precios desde un archivo JSON    
     Parámetros:
@@ -123,7 +176,7 @@ class DataPrice:
     Retorna:
     bool: True si se cargó correctamente, False en caso contrario
     """
-    def load_from_json(self, filepath):    
+    def load_from_json_price(self, filepath):    
         try:
             # Cargar los datos del archivo JSON
             loaded_data = pd.read_json(filepath, orient='records')
@@ -139,6 +192,55 @@ class DataPrice:
             return True
         except Exception as e:
             self.lastError = cfg.PRICEMODEL_PRICE_JSON_LOAD_ERROR.format(e)
+            return False
+        
+    def load_from_json_forecast_price(self, filepath):
+        try:
+            # Cargar los datos del archivo JSON
+            loaded_data = pd.read_json(filepath, orient='records')
+
+            # Convertir la columna timestamp a datetime
+            if 'ds' in loaded_data.columns:
+                loaded_data['ds'] = pd.to_datetime(loaded_data['ds'])
+            
+            # Asignar los datos cargados
+            self._price_data_forescast = loaded_data.sort_values(by='ds')
+
+            return True
+        except Exception as e:
+            self.lastError = cfg.PRICEMODEL_PRICEFORECAST_JSON_LOAD_ERROR.format(e)
+            return False
+        
+    def load_from_json_forecast_train_price(self, filepath):
+        try:
+            # Cargar los datos del archivo JSON
+            loaded_data = pd.read_json(filepath, orient='records')
+
+            # Convertir la columna timestamp a datetime
+            if 'ds' in loaded_data.columns:
+                loaded_data['ds'] = pd.to_datetime(loaded_data['ds'])
+
+            # Asignar los datos cargados
+            self._price_data_train = loaded_data.sort_values(by='ds')
+            return True
+        except Exception as e:
+            self.lastError = cfg.PRICEMODEL_PRICEFORECAST_TRAIN_JSON_LOAD_ERROR.format(e)
+            return False
+            
+    def load_from_json_forecast_test_price(self, filepath):
+        try:
+            # Cargar los datos del archivo JSON
+            loaded_data = pd.read_json(filepath, orient='records')
+
+            # Convertir la columna timestamp a datetime
+            if 'ds' in loaded_data.columns:
+                loaded_data['ds'] = pd.to_datetime(loaded_data['ds'])
+
+            # Asignar los datos cargados
+            self._price_data_test = loaded_data.sort_values(by='ds')
+            return True
+        except Exception as e:
+            self.lastError = cfg.PRICEMODEL_PRICEFORECAST_TEST_JSON_LOAD_ERROR.format(e)
             return False
         
     def fit_price(self):
@@ -194,6 +296,7 @@ class DataPrice:
             self._price_data_forescast['ds'] = future_dates
             self._price_data_forescast['y'] = self._price_data_forescast['ARIMA'].astype(float)  # Convertir a float si es necesario
             self._price_data_test = test.copy()
+            self._price_data_train = train.copy()
             return True
 
         except ValueError as e:

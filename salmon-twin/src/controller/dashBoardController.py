@@ -50,6 +50,7 @@ class dashBoardController:
         self.priceModel = DataPrice()
         if not self.priceModel.load_initial_data():
             self.lastError = self.priceModel.lastError
+            auxTools.show_error_message(cfg.DASHBOARD_LOAD_INITIAL_DATA_ERROR.format(error=self.lastError))
 
         # --- Conectar señales de la vista con manejadores de eventos ---
         self._view.actionConfigurar.triggered.connect(self.on_raft_config)
@@ -147,13 +148,12 @@ class dashBoardController:
         # Implementar la predicción de precios de salmón        
         if self.priceModel.fit_price():
             # Guardar la predicción de precios en un archivo JSON
-            
-            auxTools.show_info_dialog(cfg.DASHBOARD_PREDICT_PRICE_SUCCESS)
-        else:
-            if self.priceModel.lastError is not None:
-                auxTools.show_error_message(self.priceModel.lastError)
+            if self.priceModel.save_forescast_price_to_json(cfg.PRICEMODEL_FORECAST_CONFIG_FILE):
+                auxTools.show_info_dialog(cfg.DASHBOARD_PREDICT_PRICE_SUCCESS)
             else:
-                auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR)       
+                auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
+        else:            
+            auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))       
 
     # --- Métodos de la lógica de negocio
     def _save_raft_temperature(self):
@@ -170,7 +170,7 @@ class dashBoardController:
 
     # Guardar los datos de precios de salmón en un archivo JSON   
     def _save_salmon_price(self):
-        return self.priceModel.save_to_json(cfg.PRICEMODEL_CONFIG_FILE)
+        return self.priceModel.save_price_to_json(cfg.PRICEMODEL_CONFIG_FILE)
     
     # Borra todos los widgets del layout central
     def _clear_dashboard(self):
