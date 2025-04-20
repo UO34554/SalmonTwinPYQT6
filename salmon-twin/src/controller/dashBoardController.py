@@ -46,12 +46,6 @@ class dashBoardController:
         # variable para rastrear la conexión del temporizador
         self.timer_connected = False
 
-        # Cargar datos iniciales de los precios si existen
-        self.priceModel = DataPrice()
-        if not self.priceModel.load_initial_data():
-            self.lastError = self.priceModel.lastError
-            auxTools.show_error_message(cfg.DASHBOARD_LOAD_INITIAL_DATA_ERROR.format(error=self.lastError))
-
         # --- Conectar señales de la vista con manejadores de eventos ---
         self._view.actionConfigurar.triggered.connect(self.on_raft_config)
         self._view.actionVer.triggered.connect(self.on_raft_view)
@@ -94,9 +88,9 @@ class dashBoardController:
             "CSV Files (*.csv)",
             options=options
             )
-        if self.load_dataTemperature_from_file("csv", file_name[0], ';'):            
-            auxTools.show_info_dialog(cfg.DASHBOARD_LOAD_TEMP_FILE_SUCCESS)
-            self._save_raft_temperature()
+        if self.load_dataTemperature_from_file("csv", file_name[0], ';'):
+            if self._save_raft_temperature():             
+                auxTools.show_info_dialog(cfg.DASHBOARD_LOAD_TEMP_FILE_SUCCESS)
         else:
             auxTools.show_error_message(cfg.DASHBOARD_LOAD_TEMP_FILE_ERROR)
 
@@ -111,66 +105,92 @@ class dashBoardController:
             options=options
             )
         if self.load_dataPrice_from_file("csv", file_name[0], ';'):
-            if self._save_salmon_price():                
-                auxTools.show_info_dialog(cfg.DASHBOARD_LOAD_PRICE_FILE_SUCCESS)
-                return            
-        auxTools.show_error_message(cfg.DASHBOARD_LOAD_PRICE_FILE_ERROR)
+            if self._save_salmon_price():
+                auxTools.show_info_dialog(cfg.DASHBOARD_LOAD_PRICE_FILE_SUCCESS)            
+        else:
+            auxTools.show_error_message(cfg.DASHBOARD_LOAD_PRICE_FILE_ERROR)
 
-    def on_temperature_predict(self):
+    def choice_raft_list_dialog(self):
         self.load_rafts_from_controller()        
         data = self.raftCon.get_name_rafts()
-        # Mostrar un diálogo para seleccionar una balsa
         option = self.aux_list_dialog(data)
-        if option:
-            # Buscar la balsa seleccionada
-            raft = self.raftCon.get_raft_by_name(option)
-            # Agregar datos al gráfico si existen
-            dataTemp = raft.getTemperature()
-            if dataTemp.empty:
-                # Mostrar un mensaje de error temporal
-                self._view.statusbar.showMessage(cfg.DASHBOARD_NO_TEMP_DATA_ERROR)
-                return
-            else:
-                # Implementar la predicción de la temperatura del mar
-                data_forecast = self.tempModel.fitTempData(dataTemp,0.8,0.05,True,365)
-                if data_forecast is not None:
-                    raft.setTemperatureForecast(data_forecast)
-                    # Actualizar la balsa en la lista de balsas
-                    if self.raftCon.update_rafts_temp_forecast(raft):    
-                        auxTools.show_info_dialog(cfg.DASHBOARD_PREDICT_TEMP_SUCCESS)
-                else:
-                    auxTools.show_error_message(cfg.DASHBOARD_PREDICT_TEMP_ERROR)
+        # Mostrar un diálogo para seleccionar una balsa
+        if not option:
+            auxTools.show_error_message(cfg.DASHBOARD_SELECT_RAFT_ERORR_MESSAGE)
+            return None       
         else:
-            # Mostrar mensaje de error temporal
-            self._view.statusbar.showMessage(cfg.DASHBOARD_SELECT_RAFT_ERORR_MESSAGE)
+            # Usar la balsa actualmente seleccionada
+            raft = self.raftCon.get_raft_by_name(option)
+            return raft
+
+    def on_temperature_predict(self):
+        raft = self.choice_raft_list_dialog()
+        if raft is None:
+            return
+        
+        # Agregar datos al gráfico si existen
+        dataTemp = raft.getTemperature()
+        if dataTemp.empty:
+            # Mostrar un mensaje de error temporal
+            self._view.statusbar.showMessage(cfg.DASHBOARD_NO_TEMP_DATA_ERROR)
+            return
+        else:
+            # Implementar la predicción de la temperatura del mar
+            data_forecast = self.tempModel.fitTempData(dataTemp,0.8,0.05,True,365)
+            if data_forecast is not None:
+                raft.setTemperatureForecast(data_forecast)
+                # Actualizar la balsa en la lista de balsas
+                if self.raftCon.update_rafts_temp_forecast(raft):    
+                    auxTools.show_info_dialog(cfg.DASHBOARD_PREDICT_TEMP_SUCCESS)
+                else:
+                    auxTools.show_error_message(cfg.DASHBOARD_PREDICT_TEMP_ERROR)        
 
     def on_price_predict(self):
-        # Implementar la predicción de precios de salmón        
-        if self.priceModel.fit_price():
-            # Guardar la predicción de precios en un archivo JSON
-            if self.priceModel.save_forescast_price_to_json(cfg.PRICEMODEL_FORECAST_CONFIG_FILE):
+        raft = self.choice_raft_list_dialog()
+        if raft is None:
+            return
+        
+        # Obtener las fechas inicial y final de la balsa
+        start_date = raft.getStartDate()
+        end_date = raft.getEndDate()        
+        
+        # Llamar al método fit_price con las fechas específicas
+        if self.priceModel.fit_price(start_date=start_date, end_date=end_date, horizon_days=365):
+            # Guardar los datos de precios en la balsa            
+            raft.setPriceForecast(self.priceModel.getPriceDataForecast())
+            # Actualizar la balsa en la lista de balsas
+            if self.raftCon.update_rafts_price_forecast(raft):
                 auxTools.show_info_dialog(cfg.DASHBOARD_PREDICT_PRICE_SUCCESS)
-            else:
-                auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
         else:            
-            auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))       
+            auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
 
     # --- Métodos de la lógica de negocio
     def _save_raft_temperature(self):
-        # Buscar la balsa seleccionada si hubiera
-        if self.lastRaftName is not None:
+        if self.lastRaftName is None:
+           raft = self.choice_raft_list_dialog()
+           if raft is None:
+            return
+        else:
             raft = self.raftCon.get_raft_by_name(self.lastRaftName)
-            # Guardar los datos de temperatura en la balsa
-            tempData = self.tempModel.getTemperatureData(raft.getSeaRegion())
-            if tempData is not None:
-                raft.setTemperature(tempData)
-                # Actualizar la balsa en la lista de balsas
-                if self.raftCon.update_rafts_temp(raft):
-                    self._draw_raft(self.lastRaftName)
+           
+        # Guardar los datos de temperatura en la balsa
+        raft.setTemperature(self.tempModel.getTemperatureData(raft.getSeaRegion()))
+        # Actualizar la balsa en la lista de balsas
+        return self.raftCon.update_rafts_temp(raft)            
 
     # Guardar los datos de precios de salmón en un archivo JSON   
     def _save_salmon_price(self):
-        return self.priceModel.save_price_to_json(cfg.PRICEMODEL_CONFIG_FILE)
+        if self.lastRaftName is None:
+           raft = self.choice_raft_list_dialog()
+           if raft is None:
+            return
+        else:
+            raft = self.raftCon.get_raft_by_name(self.lastRaftName)
+
+        # Guardar los datos de precios en la balsa
+        raft.setPrice(self.priceModel.getPriceData())
+        # Actualizar la balsa en la lista de balsas
+        return self.raftCon.update_rafts_price(raft)        
     
     # Borra todos los widgets del layout central
     def _clear_dashboard(self):
@@ -210,7 +230,7 @@ class dashBoardController:
         self._draw_schematic_3d(2,0)
 
     # Dibujar el precio del salmón
-    def _draw_price(self,pos_i,pos_j,raft):
+    def _draw_price(self, pos_i, pos_j, raft):
         # Crear un widget de gráfico de PyQtGraph
         plot_widget = pg.PlotWidget(title="Precio del Salmón")
         plot_widget.setLabels(left="EUR/kg", bottom="Fechas")
@@ -221,10 +241,8 @@ class dashBoardController:
         plot_widget.addLegend()
 
         # Obtener los datos de precios
-        price_data = self.priceModel.getPriceData()
-        # Depuración
-        self.priceModel.fit_price()
-        price_data_forescast = self.priceModel.getPriceDataForecast()
+        price_data = raft.getPrice()        
+        price_data_forescast = raft.getPriceForecast()
     
         if price_data is None or price_data.empty:
             # Mostrar una 'X' roja si no hay datos de precios
@@ -255,33 +273,72 @@ class dashBoardController:
             x = filtered_price['timestamp'].map(pd.Timestamp.timestamp).values
             y = filtered_price['EUR_kg'].values
 
+            # Graficar los datos históricos de precio
+            plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2), 
+                             name="Precio Histórico EUR/kg")
+
             if price_data_forescast is not None and not price_data_forescast.empty:                
                 # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
                 x_forecast = price_data_forescast['ds'].map(pd.Timestamp.timestamp).values
                 y_forecast = price_data_forescast['y'].values
 
-                price_data_test = self.priceModel.getPriceDataTest()
-                x_test = price_data_test['ds'].map(pd.Timestamp.timestamp).values
-                y_test = price_data_test['y'].values
                 # Graficar los datos de precio pronosticados
                 plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='y', width=2, style=Qt.DashLine), 
                                  name="Precio Pronosticado EUR/kg")
-                plot_widget.plot(x_test, y_test, pen=pg.mkPen(color='b', width=2), 
-                                 name="Precio Test EUR/kg")
-                plot_widget.setXRange(x_test.min(), x_test.max(), padding=0.1)
-                plot_widget.setYRange(y_test.min(), y_test.max(), padding=0.1)
+                
+                # Configurar el rango de visualización para mostrar desde la fecha inicial a la fecha final
+                min_x = min(x.min(), x_forecast.min())
+                max_x = max(x.max(), x_forecast.max())
+                min_y = min(y.min(), y_forecast.min())
+                max_y = max(y.max(), y_forecast.max())
+                
+                plot_widget.setXRange(min_x, max_x, padding=0.1)
+                plot_widget.setYRange(min_y, max_y, padding=0.1)
 
-                # Filtros dinámicos para los ticks
-                interval = max(1, len(x_test) // 7)
-                ticks = [(x_test[i], self._format_date(x_test[i])) for i in range(0, len(x_test), interval)]
+                # Filtros dinámicos para los ticks utilizando todas las fechas
+                all_x = np.concatenate([x, x_forecast])
+                interval = max(1, len(all_x) // 7)
+                sorted_x = np.sort(all_x)
+                indices = np.linspace(0, len(sorted_x)-1, 7).astype(int)
+                ticks = [(sorted_x[i], self._format_date(sorted_x[i])) for i in indices]
 
                 # Personalizar los ticks del eje X
                 axis = plot_widget.getAxis('bottom')
                 axis.setTicks([ticks])
                 axis.setLabel("", units="")
 
+                # Añadir línea vertical para la fecha actual
+                self.price_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
+                plot_widget.addItem(self.price_vline)
+
+                # Establecer posición inicial
+                if len(x) > 0:  # Asegurarse de que hay datos
+                    initial_pos = x[0] + (x[-1] - x[0]) * 0.25
+                    self.price_vline.setPos(initial_pos)
+            else:
+                # Si no hay datos de predicción, solo mostrar los históricos
+                plot_widget.setXRange(x.min(), x.max(), padding=0.1)
+                plot_widget.setYRange(y.min(), y.max(), padding=0.1)
+                
+                # Configurar los ticks para los datos históricos
+                interval = max(1, len(x) // 7)
+                indices = np.linspace(0, len(x)-1, 7).astype(int)
+                ticks = [(x[i], self._format_date(x[i])) for i in indices]
+                
+                axis = plot_widget.getAxis('bottom')
+                axis.setTicks([ticks])
+                axis.setLabel("", units="")
+                
+                # Añadir línea vertical para la fecha actual
+                self.price_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
+                plot_widget.addItem(self.price_vline)
+                
+                if len(x) > 0:
+                    initial_pos = x[0] + (x[-1] - x[0]) * 0.25
+                    self.price_vline.setPos(initial_pos)
+
         # Agregar el widget al layout
-        self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)    
+        self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
 
     # Dibujar el modelo de crecimiento de la balsa
     def _draw_growth_model(self,pos_i,pos_j,raft):        
@@ -348,6 +405,15 @@ class dashBoardController:
                 # Graficar los datos de biomasa, crecimiento individual y número de peces
                 plot_widget.plot(x, y_biomass, pen=pg.mkPen(color='g', width=2), name="Biomasa Total (kg)")
                 plot_widget.plot(x, y_number, pen=pg.mkPen(color='r', width=2), name="Nº de Peces")
+
+                # Añadir línea vertical para la fecha actual
+                self.growth_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
+                plot_widget.addItem(self.growth_vline)
+
+                # Establecer posición inicial (25% del rango)
+                if 'x' in locals() and x.size > 0:  # Asegurarse de que hay datos
+                    initial_pos = x[0] + (x[-1] - x[0]) * 0.25
+                    self.growth_vline.setPos(initial_pos)
             
         self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
 
@@ -586,10 +652,17 @@ class dashBoardController:
             lcurrentDate.setText("Fecha actual: " + formatted_date)            
 
         # Actualizar la posición de la línea vertical si existe
-        if hasattr(self, 'date_vline') and hasattr(self, 'temperature_plot_widget'):
-            # Calculamos la posición en timestamp
-            timestamp = datetime.combine(current_date, datetime.min.time()).timestamp()
+        if hasattr(self, 'date_vline'):
+            self.date_vline.setPos(datetime.combine(current_date, datetime.min.time()).timestamp())
+
+        # Actualizar líneas verticales en todas las gráficas
+        timestamp = datetime.combine(current_date, datetime.min.time()).timestamp()
+        if hasattr(self, 'date_vline'):
             self.date_vline.setPos(timestamp)
+        if hasattr(self, 'growth_vline'):
+            self.growth_vline.setPos(timestamp)
+        if hasattr(self, 'price_vline'):
+            self.price_vline.setPos(timestamp)
 
         # Actualizar las líneas de predicción
         self._update_forecast_lines(value, raft, isForecast)
@@ -804,9 +877,10 @@ class dashBoardController:
         self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)
         return plot_widget
     
-    # Añadir un nuevo método para actualizar las líneas de predicción
-    def _update_forecast_lines(self, slider_value, raft, isForecast=False):
-        """Actualiza las líneas de predicción según la posición actual del slider"""
+    # Actualizar las líneas de predicción según la posición del slider
+    # Separa los datos en pasado y futuro, incluyendo el punto de conexión en ambos
+    # y actualiza las líneas de predicción
+    def _update_forecast_lines(self, slider_value, raft, isForecast=False):        
         if not hasattr(self, 'x_forecast') or not hasattr(self, 'y_forecast'):
             return
         
@@ -895,5 +969,4 @@ class dashBoardController:
             pass
         elif file_type == "excel":
             # Implementar la carga de datos desde un archivo Excel 
-            pass 
-    
+            pass

@@ -8,8 +8,12 @@ import config as cfg
 
 # Clase que representa una balsa marina
 class seaRaft:        
-    
-    def __init__(self, id=None, name=None, seaRegion=None, startDate=None, endDate=None, temperature=None, temperatureForecast=None):
+    # Constructor de la clase seaRaft    
+    # Se inicializan los atributos de la clase seaRaft
+    # id: int, nombre: str, regionMarina: str, fechaInicio: datetime, fechaFin: datetime, temperatura: pd.DataFrame, precio: pd.DataFrame
+    # temperatureForecast: pd.DataFrame, priceForecast: pd.DataFrame
+    def __init__(self, id=None, name=None, seaRegion=None, startDate=None, endDate=None, 
+                 temperature=None, temperatureForecast=None, price=None, priceForecast=None):
         self._id = id
         self._name = name
         self._seaRegion = seaRegion
@@ -17,6 +21,8 @@ class seaRaft:
         self._endDate = endDate        
         self._temperature = temperature
         self._temperatureForecast = temperatureForecast
+        self._price = price
+        self._priceForecast = priceForecast        
 
     # --- Setters ---
     def setId(self, id:int):
@@ -42,6 +48,12 @@ class seaRaft:
     def setTemperatureForecast(self, temp_forecast:pd.DataFrame):
         self._temperatureForecast = pd.DataFrame(temp_forecast)
 
+    def setPrice(self, price:pd.DataFrame):
+        self._price = pd.DataFrame(price)
+
+    def setPriceForecast(self, price_forecast:pd.DataFrame):
+        self._priceForecast = pd.DataFrame(price_forecast)
+
     # --- Getters ---
     def getId(self)->int:
         return int(self._id)
@@ -63,6 +75,12 @@ class seaRaft:
     
     def getTemperatureForecast(self)->pd.DataFrame:
         return pd.DataFrame(self._temperatureForecast)
+    
+    def getPrice(self)->pd.DataFrame:
+        return pd.DataFrame(self._price)
+    
+    def getPriceForecast(self)->pd.DataFrame:
+        return pd.DataFrame(self._priceForecast)
     
     # Convierte los datos de la balsa a un diccionario para serialización
     def to_dict(self):
@@ -90,6 +108,32 @@ class seaRaft:
         else:
             temperature_forecast_data = None
 
+        if self._price is not None:
+            # Asegurarse de que la columna 'ds' sea de tipo datetime
+            self._price['timestamp'] = pd.to_datetime(self._price['timestamp'], errors='coerce')
+
+            # Aplicar .isoformat() directamente a cada valor de la columna 'ds'
+            self._price['timestamp'] = self._price['timestamp'].apply(lambda x: x.isoformat() if pd.notnull(x) else None)
+
+            # Convertir a un formato serializable
+            price_data = self._price.to_dict(orient='records')
+        else:
+            price_data = None
+
+        
+        if self._priceForecast is not None:
+            # Asegurarse de que la columna 'ds' sea de tipo datetime
+            self._priceForecast['ds'] = pd.to_datetime(self._priceForecast['ds'], errors='coerce')
+
+            # Aplicar .isoformat() directamente a cada valor de la columna 'ds'
+            self._priceForecast['ds'] = self._priceForecast['ds'].apply(lambda x: x.isoformat() if pd.notnull(x) else None)
+
+            # Convertir a un formato serializable
+            price_forecast_data = self._priceForecast.to_dict(orient='records')
+        else:
+            price_forecast_data = None
+
+
         return {
             'id': self._id,
             'name': self._name,
@@ -97,7 +141,9 @@ class seaRaft:
             'startDate': self._startDate.isoformat(),
             'endDate': self._endDate.isoformat(),
             'temperature': temperature_data,
-            'temperatureForecast': temperature_forecast_data
+            'temperatureForecast': temperature_forecast_data,
+            'price': price_data,
+            'priceForecast': price_forecast_data
         }
     
     # Crea una instancia de seaRaft a partir de un diccionario
@@ -140,6 +186,24 @@ class seaRaft:
                 except Exception as e:
                     lastError = cfg.RAFTS_ERROR_PARSER_TEMPERATURE_FORECAST.format(e)
                     return None, lastError
+                
+            # Reconstruir price como un DataFrame si existe
+            price = None
+            if 'price' in data and data['price']:
+                try:                    
+                    price = pd.DataFrame(data['price'])
+                except Exception as e:
+                    lastError = cfg.RAFTS_ERROR_PARSER_PRICE.format(e)
+                    return None, lastError
+                
+            # Reconstruir priceForecast como un DataFrame si existe
+            priceForecast = None
+            if 'priceForecast' in data and data['priceForecast']:
+                try:                    
+                    priceForecast = pd.DataFrame(data['priceForecast'])
+                except Exception as e:
+                    lastError = cfg.RAFTS_ERROR_PARSER_PRICE_FORECAST.format(e)
+                    return None, lastError
 
             # Crear el objeto seaRaft
             return seaRaft(
@@ -149,7 +213,9 @@ class seaRaft:
                 startDate=start_date,
                 endDate=end_date,
                 temperature=temperature,
-                temperatureForecast=temperatureForecast
+                temperatureForecast=temperatureForecast,
+                price=price,
+                priceForecast=priceForecast
             ), lastError
         except Exception as e:
             lastError = cfg.RAFTS_ERROR_FROM_DICT_TO_RAFT.format(e)

@@ -68,6 +68,8 @@ RAFTS_ERROR_PARSER_START_DATE = "Error al convertir fecha de inicio: {e}"
 RAFTS_ERROR_PARSER_END_DATE = "Error al convertir fecha de fin: {e}"
 RAFTS_ERROR_PARSER_TEMPERATURE = "Error al convertir los datos de temperatura: {e}"
 RAFTS_ERROR_PARSER_TEMPERATURE_FORECAST = "Error al convertir los datos de predicción de temperatura: {e}"
+RAFTS_ERROR_PARSER_PRICE = "Error al convertir los datos de precios: {e}"
+RAFTS_ERROR_PARSER_PRICE_FORECAST = "Error al convertir los datos de predicción de precios: {e}"
 RAFTS_ERROR_FROM_DICT_TO_RAFT = "Error al crear balsa desde diccionario: {e}"
 #--- Cadenas para el modelo de precios en priceModel.py
 PRICEMODEL_ERROR_PARSER_DATE = "No fue posible convertir a una fecha válida"
