@@ -14,6 +14,9 @@ from controller.dashBoardController import dashBoardController
 # para compilar: 
 # cd salmon-twin
 # pyside6-rcc salmonResources.qrc -o src/resources.py
+# *********************
+# pip list --outdated --format=json | ConvertFrom-Json | ForEach-Object { pip install --upgrade $_.name }
+
 import resources
 
 if __name__ == "__main__":
