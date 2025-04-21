@@ -7,8 +7,15 @@ from datetime import datetime, timedelta
 import config as cfg
 import os
 from statsforecast import StatsForecast
-from statsforecast.models import ARIMA
+from statsforecast.models import AutoARIMA 
 
+# Se define la clase DataPrice para gestionar los datos de precios
+# Esta clase se encarga de parsear los datos de precios, ajustarlos y predecirlos
+# Se espera que los datos de precios contengan las columnas 'Year', 'Week' y 'EUR_kg'
+# La columna 'Year' contiene el año de la observación
+# La columna 'Week' contiene la semana del año de la observación
+# La columna 'EUR_kg' contiene el precio en euros por kilogramo
+# La clase también se encarga de gestionar los errores que puedan ocurrir durante el proceso
 class DataPrice:
     def __init__(self):
         # Datos de precio en bruto        
@@ -57,21 +64,34 @@ class DataPrice:
             self.lastError="Error: {e}"
             return False
 
-    """
-    Retorna los datos de precios procesados
-    Retorna:
-    pd.DataFrame: DataFrame con los datos de precios procesados
-    """
+    # Se obtiene el dataframe de precios procesados
+    # Parámetros:
+    # None
+    # Retorna:
+    # pd.DataFrame: DataFrame con los datos de precios procesados
     def getPriceData(self):       
         return self._price_data
     
-    """
-        Retorna los datos de precios procesados
-        Retorna:
-        pd.DataFrame: DataFrame con los datos de precios procesados
-        """
+    # Se obtiene el dataframe de precios de la predicción
+    # Parámetros:
+    # None
+    # Retorna:
+    # pd.DataFrame: DataFrame con los datos de precios de la predicción
     def getPriceDataForecast(self):        
         return self._price_data_forescast
+    
+    # Se asignan los datos de precios a la variable de instancia
+    # Parámetros:
+    # data (pd.DataFrame): DataFrame que contiene los datos de precios
+    # Se espera que el dataframe contenga las columnas 'Year', 'Week' y 'EUR_kg'
+    # Retorna:
+    # bool: True si se asignaron correctamente, False en caso contrario
+    def setPriceData(self, data):        
+        self._price_data = data.copy()
+        # Se procesan los datos de precios
+        if not self.parsePrice(self._price_data):
+            return False
+        return True
     
     # Se ajusta el modelo de precios utilizando los datos de precios procesados
     # Parámetros:
@@ -80,7 +100,7 @@ class DataPrice:
     # horizon_days (int): Número de días para la predicción
     # Retorna:
     # bool: True si se ajustó correctamente, False en caso contrario   
-    def fit_price(self, start_date=None, end_date=None, horizon_days=365):
+    def fit_price(self, slider_value, start_date=None, end_date=None, horizon_days=365):
         self.lastError = None
         if self._price_data is None:
              self.lastError = cfg.PRICEMODEL_FIT_NO_DATA
@@ -88,6 +108,9 @@ class DataPrice:
         try:
             # Filter data based on the selected dates
             filtered_data = self._price_data.copy()
+            filtered_data['timestamp'] = pd.to_datetime(filtered_data['timestamp'], errors='coerce')
+            # Eliminar filas con valores NaT (fechas inválidas)
+            filtered_data = filtered_data.dropna(subset=['timestamp'])           
             
             # Filtrar por fecha inicial si se proporciona
             if start_date:
@@ -102,7 +125,7 @@ class DataPrice:
 
             # Verificar si hay datos suficientes después del filtrado
             if len(filtered_data) < 10:  # Establecer un mínimo razonable de puntos
-                self.lastError = "No hay suficientes datos para el rango de fechas seleccionado"
+                self.lastError = cfg.PRICEMODEL_NOT_ENOUGHT_DATA
                 return False
 
             # Crear un nuevo DataFrame con las columnas requeridas por StatsForecast
@@ -117,27 +140,31 @@ class DataPrice:
             })
             
             # Define el porcentaje para el conjunto de entrenamiento
-            train_size = int(len(data) * 0.92)
+            percent=slider_value/100
+            train_size = int(len(data)*percent) 
             # Divide el DataFrame
             train = data.iloc[:train_size]
             test = data.iloc[train_size:]
             
-            # **************** Ajusta el modelo ARIMA
-            # Se crea un objeto StatsForecast con el modelo ARIMA
-            # Se especifica la frecuencia de los datos (semanal en este caso)
-            # Se utiliza el modelo ARIMA con orden (3, 0, 0) y estacionalidad semanal (52 semanas)
-            # Se ajusta el modelo a los datos de entrenamiento
-            # Se predice el horizonte especificado (número de días)
-            # Se crea un objeto StatsForecast con el modelo ARIMA
+            # **************** Ajusta el modelo AutoARIMA ****************
+            modelo = AutoARIMA(                
+                seasonal=True,                        
+                stepwise=False,
+                trace=False,                                                        
+            )
+            
             sf = StatsForecast(
-                models=[ARIMA(order=(3, 0, 0), season_length=52, seasonal_order=(1, 1, 0))],
-                freq='W',
-                )
+                models=[modelo],
+                freq='W', # Especifica la frecuencia de tus datos (en este caso, semanal 'W')                 
+                verbose=True  # Activar modo detallado para ver el progreso
+            )
 
+            # Ajusta el modelo a los datos de entrenamiento
+            # Se utiliza el DataFrame filtrado como datos de entrenamiento            
             sf.fit(train)
 
-            horizonte = len(test)
-            self._price_data_forescast = sf.predict(h=horizonte)
+            horizon_weeks = int(horizon_days*percent/7)
+            self._price_data_forescast = sf.predict(h=horizon_weeks)  # Cambia el horizonte según tus necesidades
 
             # Importante: añadir las fechas de predicción
             # 1. Obtener la última fecha de los datos de entrenamiento
@@ -146,18 +173,19 @@ class DataPrice:
             # 2. Generar un rango de fechas futuras semanales
             future_dates = pd.date_range(
                 start=last_date + pd.Timedelta(days=7),  # Una semana después de la última fecha
-                periods=horizonte,
+                periods=horizon_weeks,  # Número de semanas a predecir
                 freq='W'  # Frecuencia semanal
             )
 
             # 3. Añadir las fechas al DataFrame de predicción
             self._price_data_forescast['ds'] = future_dates
-            self._price_data_forescast['y'] = self._price_data_forescast['ARIMA'].astype(float)  # Convertir a float si es necesario
+            self._price_data_forescast['y'] = self._price_data_forescast['AutoARIMA'].astype(float)  
+            
             self._price_data_test = test.copy()
             self._price_data_train = train.copy()
             return True
 
         except ValueError as e:
-            self.lastError= cfg.PRICEMODEL_FIT_ERROR.format(e)
+            self.lastError= cfg.PRICEMODEL_FIT_ERROR.format(e=e.args[0])
             return False
 

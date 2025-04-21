@@ -77,14 +77,7 @@ PRICEMODEL_ERROR_PARSER_PRICE = "No fue posible convertir el precio a un número
 PRICEMODEL_ERROR_PARSER_COLUMNS_ERROR = "Las columnas:'Year', 'Week', 'Month' y 'EUR_kg' no se encuentran en los datos."
 PRICEMODEL_PRICE_EMPTY_DATA_SAVE_ERROR = "No hay datos de precios para guardar"
 PRICEMODEL_PRICEFORECAST_EMPTY_DATA_SAVE_ERROR = "No hay datos de predicción de precios para guardar"
-PRICEMODEL_PRICE_JSON_SAVE_ERROR = "Error al guardar los datos de precios: {e}"
-PRICEMODEL_PRICE_JSON_LOAD_ERROR = "Error al cargar los datos de precios: {e}"
-PRICEMODEL_PRICEFORECAST_JSON_LOAD_ERROR = "Error al cargar los datos de predicción de precios: {e}"
-PRICEMODEL_PRICEFORECAST_TRAIN_JSON_LOAD_ERROR = "Error al cargar los datos de entrenamiento de predicción de precios: {e}"
-PRICEMODEL_PRICEFORECAST_TEST_JSON_LOAD_ERROR = "Error al cargar los datos de test de predicción de precios: {e}"
-PRICEMODEL_PRICEFORECAST_JSON_SAVE_ERROR = "Error al guardar los datos de predicción de precios: {e}"
-PRICEMODEL_CONFIG_FILE = os.path.join(CONFIG_DIR, "prices.json")
-PRICEMODEL_FORECAST_CONFIG_FILE = os.path.join(CONFIG_DIR, "priceForecast.json")
+PRICEMODEL_NOT_ENOUGHT_DATA = "No hay suficientes datos para el rango de fechas seleccionado"
 PRICEMODEL_FIT_NO_DATA = "Los datos de precio no se han cargado. Se cancela ARIMA."
 PRICEMODEL_FIT_ERROR = "Error: {e}"
 #--- Cadenas para el modelo de temperatura marina en seaTemperature.py

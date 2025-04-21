@@ -45,6 +45,8 @@ class dashBoardController:
         self.timer = QTimer()
         # variable para rastrear la conexión del temporizador
         self.timer_connected = False
+        # Variable de porcentaje del slider
+        self.slider_value = 25
 
         # --- Conectar señales de la vista con manejadores de eventos ---
         self._view.actionConfigurar.triggered.connect(self.on_raft_config)
@@ -153,9 +155,11 @@ class dashBoardController:
         # Obtener las fechas inicial y final de la balsa
         start_date = raft.getStartDate()
         end_date = raft.getEndDate()        
-        
+        if not self.priceModel.setPriceData(raft.getPrice()):
+            auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
+            return
         # Llamar al método fit_price con las fechas específicas
-        if self.priceModel.fit_price(start_date=start_date, end_date=end_date, horizon_days=365):
+        if self.priceModel.fit_price(self.slider_value,start_date=start_date, end_date=end_date, horizon_days=365):
             # Guardar los datos de precios en la balsa            
             raft.setPriceForecast(self.priceModel.getPriceDataForecast())
             # Actualizar la balsa en la lista de balsas
@@ -278,13 +282,23 @@ class dashBoardController:
                              name="Precio Histórico EUR/kg")
 
             if price_data_forescast is not None and not price_data_forescast.empty:                
-                # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
-                x_forecast = price_data_forescast['ds'].map(pd.Timestamp.timestamp).values
-                y_forecast = price_data_forescast['y'].values
+                # Asegurar que la columna 'ds' sea de tipo datetime con el formato correcto
+                price_data_forescast['ds'] = pd.to_datetime(price_data_forescast['ds'], errors='coerce')
+    
+                # Eliminar valores NaT que pudieran haberse generado
+                price_data_forescast = price_data_forescast.dropna(subset=['ds'])
+    
+                # Método alternativo para convertir fechas a timestamps
+                x_forecast = np.array([pd.Timestamp(date).timestamp() 
+                         for date in price_data_forescast['ds'] 
+                         if not pd.isna(date)])
+    
+                # Asegurarse de que 'y' tiene la misma longitud que x_forecast
+                y_forecast = price_data_forescast['y'].iloc[:len(x_forecast)].values                
 
                 # Graficar los datos de precio pronosticados
                 plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='y', width=2, style=Qt.DashLine), 
-                                 name="Precio Pronosticado EUR/kg")
+                                 name="Precio Pronosticado EUR/kg y1")
                 
                 # Configurar el rango de visualización para mostrar desde la fecha inicial a la fecha final
                 min_x = min(x.min(), x_forecast.min())
@@ -615,6 +629,7 @@ class dashBoardController:
     def _update_current_date(self,value,raft,lcurrentDate):
         start_date = raft.getStartDate()
         end_date = raft.getEndDate()
+        self.slider_value = value
         # Variable boolean para determinar si se está en el periodo de pronóstico
         # Si no hay datos de pronóstico, no se necesita esta variable
         isForecast = False
@@ -693,9 +708,9 @@ class dashBoardController:
         dateSlider.setMinimum(0)
         dateSlider.setMaximum(100)
 
-        # Inicializar el slider al 25%
-        dateSlider.setValue(25)
-        self._update_current_date(25,raft,lcurrentDate)
+        # Inicializar el slider al 25%        
+        dateSlider.setValue(self.slider_value)
+        self._update_current_date(self.slider_value,raft,lcurrentDate)
        
         # Mostrar las fechas de inicio y fin en formato de idioma castellano        
         formatted_start_date = raft.getStartDate().strftime("%d de %B de %Y")
