@@ -160,7 +160,8 @@ class dashBoardController:
             return
         # Llamar al método fit_price con las fechas específicas
         if self.priceModel.fit_price(self.slider_value,start_date=start_date, end_date=end_date, horizon_days=365):
-            # Guardar los datos de precios en la balsa            
+            # Guardar los datos de precios en la balsa
+            raft.setPerCentage(self.slider_value)           
             raft.setPriceForecast(self.priceModel.getPriceDataForecast())
             # Actualizar la balsa en la lista de balsas
             if self.raftCon.update_rafts_price_forecast(raft):
@@ -298,7 +299,7 @@ class dashBoardController:
 
                 # Graficar los datos de precio pronosticados
                 plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='y', width=2, style=Qt.DashLine), 
-                                 name="Precio Pronosticado EUR/kg y1")
+                                 name="Precio Pronosticado EUR/kg y")
                 
                 # Configurar el rango de visualización para mostrar desde la fecha inicial a la fecha final
                 min_x = min(x.min(), x_forecast.min())
@@ -310,8 +311,7 @@ class dashBoardController:
                 plot_widget.setYRange(min_y, max_y, padding=0.1)
 
                 # Filtros dinámicos para los ticks utilizando todas las fechas
-                all_x = np.concatenate([x, x_forecast])
-                interval = max(1, len(all_x) // 7)
+                all_x = np.concatenate([x, x_forecast])               
                 sorted_x = np.sort(all_x)
                 indices = np.linspace(0, len(sorted_x)-1, 7).astype(int)
                 ticks = [(sorted_x[i], self._format_date(sorted_x[i])) for i in indices]
@@ -632,32 +632,12 @@ class dashBoardController:
         self.slider_value = value
         # Variable boolean para determinar si se está en el periodo de pronóstico
         # Si no hay datos de pronóstico, no se necesita esta variable
-        isForecast = False
-        # Si tiene datos de pronóstico, extender un año más allá de la fecha final
-        if not raft.getTemperatureForecast().empty:
-            max_forecast_date = end_date + timedelta(days=365)
-            # Ahora dividimos el rango del slider:
-            # - De 0 a 75: periodo histórico (start_date a end_date)
-            # - De 75 a 100: periodo de predicción (end_date a max_forecast_date)
-            if value <= 75:  # Estamos en el periodo histórico
-                # Mapear 0-75 al rango histórico completo
-                historical_progress = value / 75
-                delta_days = (end_date - start_date).days
-                current_day_offset = int(delta_days * historical_progress)
-                current_date = start_date + timedelta(days=current_day_offset)
-            else:  # Estamos en el periodo de predicción
-                # Mapear 75-100 al rango de predicción
-                forecast_progress = (value - 75) / 25
-                forecast_days = (max_forecast_date - end_date).days
-                current_day_offset = int(forecast_days * forecast_progress)
-                current_date = end_date + timedelta(days=current_day_offset)
-                isForecast = True  # Estamos en el periodo de pronóstico
-        else:
-            # Si no hay datos de pronóstico, simplemente mapeamos 0-100 al rango histórico
-            delta_days = (end_date - start_date).days
-            if delta_days > 0:  # Protect against division by zero
-                current_day_offset = int(delta_days * (value / 100))
-                current_date = start_date + timedelta(days=current_day_offset)
+        isForecast = False        
+        # Si no hay datos de pronóstico, simplemente mapeamos 0-100 al rango histórico
+        delta_days = (end_date - start_date).days
+        if delta_days > 0:  # Protect against division by zero
+            current_day_offset = int(delta_days * (value / 100))
+            current_date = start_date + timedelta(days=current_day_offset)
 
         # Formatear la fecha y actualizar la etiqueta
         formatted_date = current_date.strftime("%d de %B de %Y")
@@ -708,7 +688,7 @@ class dashBoardController:
         dateSlider.setMinimum(0)
         dateSlider.setMaximum(100)
 
-        # Inicializar el slider al 25%        
+        self.slider_value = raft.getPerCentage()        
         dateSlider.setValue(self.slider_value)
         self._update_current_date(self.slider_value,raft,lcurrentDate)
        

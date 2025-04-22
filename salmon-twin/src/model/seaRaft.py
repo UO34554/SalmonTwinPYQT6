@@ -12,12 +12,13 @@ class seaRaft:
     # Se inicializan los atributos de la clase seaRaft
     # id: int, nombre: str, regionMarina: str, fechaInicio: datetime, fechaFin: datetime, temperatura: pd.DataFrame, precio: pd.DataFrame
     # temperatureForecast: pd.DataFrame, priceForecast: pd.DataFrame
-    def __init__(self, id=None, name=None, seaRegion=None, startDate=None, endDate=None, 
+    def __init__(self, id=None, name=None, seaRegion=None, startDate=None, endDate=None, perCentage=None, 
                  temperature=None, temperatureForecast=None, price=None, priceForecast=None):
         self._id = id
         self._name = name
         self._seaRegion = seaRegion
         self._startDate = startDate
+        self._perCentage = perCentage
         self._endDate = endDate        
         self._temperature = temperature
         self._temperatureForecast = temperatureForecast
@@ -37,6 +38,9 @@ class seaRaft:
     def setStartDate(self, startDate:datetime):
         # Convertir la fecha a las 00:00:00
         self._startDate = datetime.combine(startDate, datetime.min.time())
+
+    def setPerCentage(self, perCentage:int):
+        self._perCentage = int(perCentage)
 
     def setEndDate(self, endDate:datetime):
         # Convertir la fecha a las 00:00:00
@@ -66,6 +70,12 @@ class seaRaft:
     
     def getStartDate(self)->datetime:
         return self._startDate.date()
+    
+    def getPerCentage(self)->int:
+        # Si el porcentaje es None, devolver 25
+        if self._perCentage is None:
+            return 25
+        return int(self._perCentage)
     
     def getEndDate(self)->datetime:
         return self._endDate.date()
@@ -139,6 +149,7 @@ class seaRaft:
             'name': self._name,
             'seaRegion': self._seaRegion,
             'startDate': self._startDate.isoformat(),
+            'perCentage': self._perCentage,
             'endDate': self._endDate.isoformat(),
             'temperature': temperature_data,
             'temperatureForecast': temperature_forecast_data,
@@ -211,6 +222,7 @@ class seaRaft:
                 name=data.get('name'),
                 seaRegion=data.get('seaRegion'),
                 startDate=start_date,
+                perCentage=data.get('perCentage'),
                 endDate=end_date,
                 temperature=temperature,
                 temperatureForecast=temperatureForecast,

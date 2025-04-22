@@ -141,10 +141,15 @@ class DataPrice:
             
             # Define el porcentaje para el conjunto de entrenamiento
             percent=slider_value/100
-            train_size = int(len(data)*percent) 
+
+            delta_days = (end_date - start_date).days
+            if delta_days > 0:  # Protect against division by zero
+                current_day_offset = int(delta_days * percent)
+                current_date = start_date + timedelta(days=current_day_offset)
+            
             # Divide el DataFrame
-            train = data.iloc[:train_size]
-            test = data.iloc[train_size:]
+            train = data[data['ds'].dt.date <= current_date]
+            test = data[data['ds'].dt.date > current_date]
             
             # **************** Ajusta el modelo AutoARIMA ****************
             modelo = AutoARIMA(                
