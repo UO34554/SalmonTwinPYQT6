@@ -58,24 +58,26 @@ class DataTemperature:
             self.lastError=cfg.REGION_NOT_FOUND.format(region)
             return None
         
-    # Predice los datos de temperatura en tempData
-    def fitTempData(self,tempData,changepoint_range,changepoint_prior_scale,yearly_seasonality,periods):
+    # Predice los datos de temperatura para un futuro periodo de tiempo en dias
+    def fitTempData(self,tempData,periods):
         data_forecast = None
-        fig_data_forecast = None
-        fig_data_forecast_components = None
-
-        #changepoint_range % of the data to be considered as changepoints (default 0.8) 80% of the data
-        #changepoint_prior_scale parameter which determines the flexibility of the trend (default 0.05)
-        #yearly_seasonality parameter which determines the flexibility of the yearly seasonality (default 10)
 
         # Crea un objeto de la libreria Prophet
-        p = Prophet(changepoint_range=changepoint_range,changepoint_prior_scale=changepoint_prior_scale,yearly_seasonality=yearly_seasonality)
+        # Análisis detallado:
+        # Prophet es una potente biblioteca de forecasting desarrollada por Facebook (Meta) que descompone
+        # las series temporales en tres componentes principales: tendencia, estacionalidad y efectos de festividades. 
+        # yearly_seasonality=2 indica que se espera que la estacionalidad anual tenga un efecto significativo en los datos.
+        # Esto es útil para datos que tienen patrones estacionales claros, como las temperaturas del mar, que pueden variar
+        # significativamente a lo largo del año.
+        # En este caso, se ha establecido yearly_seasonality=2 para permitir que el modelo capture patrones estacionales más complejos.
         
+        p = Prophet(yearly_seasonality=2)           
+
         # Ajusta el modelo a los datos de temperatura
         p.fit(tempData)
         
         # Predice los datos de temperatura para el futuro
-        future_data = p.make_future_dataframe(periods)        
+        future_data = p.make_future_dataframe(periods, freq='D')        
         data_forecast = p.predict(future_data)
 
         #--- Debug ---

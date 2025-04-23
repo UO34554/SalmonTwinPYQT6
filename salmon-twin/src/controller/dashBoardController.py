@@ -45,8 +45,6 @@ class dashBoardController:
         self.timer = QTimer()
         # variable para rastrear la conexión del temporizador
         self.timer_connected = False
-        # Variable de porcentaje del slider
-        self.slider_value = 25
 
         # --- Conectar señales de la vista con manejadores de eventos ---
         self._view.actionConfigurar.triggered.connect(self.on_raft_config)
@@ -137,8 +135,20 @@ class dashBoardController:
             self._view.statusbar.showMessage(cfg.DASHBOARD_NO_TEMP_DATA_ERROR)
             return
         else:
-            # Implementar la predicción de la temperatura del mar
-            data_forecast = self.tempModel.fitTempData(dataTemp,0.8,0.05,True,365)
+            # Implementar la predicción de la temperatura del mar seguún indica el slider
+            if self.dateSlider is None:
+                sliderValue = 25
+            else:
+                sliderValue = self.dateSlider.value()
+            raft.setPerCentage(sliderValue)
+            perCent = raft.getPerCentage()/100
+            days = int(365*perCent)           
+
+            # Filtrar los datos de temperatura de entrenamiento con la fecha inicial y hasta la fecha actual
+            delta_days = (raft.getEndDate() - raft.getStartDate()).days
+            forescast_start_date = raft.getStartDate() + timedelta(delta_days * perCent)
+            dataTemp = dataTemp[dataTemp['ds'].apply(lambda x: pd.Timestamp(x) <= pd.Timestamp(forescast_start_date))]            
+            data_forecast = self.tempModel.fitTempData(dataTemp,days)
             if data_forecast is not None:
                 raft.setTemperatureForecast(data_forecast)
                 # Actualizar la balsa en la lista de balsas
@@ -159,7 +169,7 @@ class dashBoardController:
             auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
             return
         # Llamar al método fit_price con las fechas específicas
-        if self.priceModel.fit_price(self.slider_value,start_date=start_date, end_date=end_date, horizon_days=365):
+        if self.priceModel.fit_price(self.slider_value,start_date, end_date, 365):
             # Guardar los datos de precios en la balsa
             raft.setPerCentage(self.slider_value)           
             raft.setPriceForecast(self.priceModel.getPriceDataForecast())
@@ -626,17 +636,16 @@ class dashBoardController:
     # --- Fin Grafico 2d ---
 
     # Función para actualizar la etiqueta de la fecha cuando cambia el valor del slider
-    def _update_current_date(self,value,raft,lcurrentDate):
+    def _update_current_date(self,perCentage,raft,lcurrentDate):
         start_date = raft.getStartDate()
-        end_date = raft.getEndDate()
-        self.slider_value = value
+        end_date = raft.getEndDate()        
         # Variable boolean para determinar si se está en el periodo de pronóstico
         # Si no hay datos de pronóstico, no se necesita esta variable
         isForecast = False        
         # Si no hay datos de pronóstico, simplemente mapeamos 0-100 al rango histórico
         delta_days = (end_date - start_date).days
         if delta_days > 0:  # Protect against division by zero
-            current_day_offset = int(delta_days * (value / 100))
+            current_day_offset = int(delta_days * (perCentage / 100))
             current_date = start_date + timedelta(days=current_day_offset)
 
         # Formatear la fecha y actualizar la etiqueta
@@ -660,7 +669,7 @@ class dashBoardController:
             self.price_vline.setPos(timestamp)
 
         # Actualizar las líneas de predicción
-        self._update_forecast_lines(value, raft, isForecast)
+        self._update_forecast_lines(perCentage, raft, isForecast)
 
     # Datos de la balsa
     def _draw_infopanel(self,pos_i,pos_j,raft):
@@ -684,13 +693,11 @@ class dashBoardController:
         sliderLayout.addWidget(lcurrentDate)
 
         # Configurar el slider con el rango 0-100
-        dateSlider = QSlider(Qt.Horizontal)
-        dateSlider.setMinimum(0)
-        dateSlider.setMaximum(100)
-
-        self.slider_value = raft.getPerCentage()        
-        dateSlider.setValue(self.slider_value)
-        self._update_current_date(self.slider_value,raft,lcurrentDate)
+        self.dateSlider = QSlider(Qt.Horizontal)
+        self.dateSlider.setMinimum(0)
+        self.dateSlider.setMaximum(100)            
+        self.dateSlider.setValue(raft.getPerCentage())
+        self._update_current_date(raft.getPerCentage(),raft,lcurrentDate)
        
         # Mostrar las fechas de inicio y fin en formato de idioma castellano        
         formatted_start_date = raft.getStartDate().strftime("%d de %B de %Y")
@@ -731,10 +738,10 @@ class dashBoardController:
         layout.addWidget(lFechas)
         # Añadir el slider al layout
         layout.addWidget(sliderView)        
-        layout.addWidget(dateSlider)
+        layout.addWidget(self.dateSlider)
 
         # Conectar el evento de cambio de valor del slider
-        dateSlider.valueChanged.connect(lambda value: self._update_current_date(value, raft, lcurrentDate))
+        self.dateSlider.valueChanged.connect(lambda value: self._update_current_date(value, raft, lcurrentDate))
 
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
 
@@ -787,12 +794,13 @@ class dashBoardController:
                 df_temperature_forecast['ds'] = pd.to_datetime(df_temperature_forecast['ds'], errors='coerce')
                 # Eliminar valores NaT antes de filtrar
                 df_temperature_forecast = df_temperature_forecast.dropna(subset=['ds'])
-                # Filtrar los datos de temperatura con la fecha inicial y final de la balsa
-                # Pero permitiendo ver un año más allá de la fecha final de la balsa si los datos existen
-                # Esto es para que la predicción no se corte en la fecha final de la balsa
-                extended_end_date = raft.getEndDate() + timedelta(days=365)
-                df_temperature_forecast = df_temperature_forecast[(df_temperature_forecast['ds'].dt.date >= raft.getStartDate()) & 
-                                                                  (df_temperature_forecast['ds'].dt.date <= extended_end_date)]
+                # Filtrar la predicción para mostrar solo apartir de la fecha actual
+                perCentage = raft.getPerCentage() / 100
+                delta_days = (raft.getEndDate() - raft.getStartDate()).days
+                forescast_start_date = raft.getStartDate() + timedelta(delta_days * perCentage) - timedelta(days=30)
+                # Debug -eliminar
+                forescast_start_date = raft.getStartDate()
+                df_temperature_forecast = df_temperature_forecast[(df_temperature_forecast['ds'].dt.date >= forescast_start_date)]
             else:
                 df_temperature_forecast = None
             # Obtener los datos de temperatura de la balsa            
