@@ -299,7 +299,7 @@ class dashBoardController:
 
                 # Graficar los datos de precio pronosticados
                 plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='y', width=2, style=Qt.DashLine), 
-                                 name="Precio Pronosticado EUR/kg y")
+                                 name="Precio Pronosticado EUR/kg")
                 
                 # Configurar el rango de visualización para mostrar desde la fecha inicial a la fecha final
                 min_x = min(x.min(), x_forecast.min())

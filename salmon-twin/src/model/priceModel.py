@@ -177,7 +177,7 @@ class DataPrice:
         
             # 2. Generar un rango de fechas futuras semanales
             future_dates = pd.date_range(
-                start=last_date + pd.Timedelta(days=7),  # Una semana después de la última fecha
+                start=last_date, #+ pd.Timedelta(days=7),  # Una semana después de la última fecha
                 periods=horizon_weeks,  # Número de semanas a predecir
                 freq='W'  # Frecuencia semanal
             )
