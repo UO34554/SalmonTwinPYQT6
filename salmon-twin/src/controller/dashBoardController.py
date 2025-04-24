@@ -169,9 +169,13 @@ class dashBoardController:
             auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
             return
         # Llamar al método fit_price con las fechas específicas
-        if self.priceModel.fit_price(self.slider_value,start_date, end_date, 365):
+        if self.dateSlider is None:
+            sliderValue = 25
+        else:
+            sliderValue = self.dateSlider.value()
+        if self.priceModel.fit_price(sliderValue,start_date, end_date, 365):
             # Guardar los datos de precios en la balsa
-            raft.setPerCentage(self.slider_value)           
+            raft.setPerCentage(sliderValue)           
             raft.setPriceForecast(self.priceModel.getPriceDataForecast())
             # Actualizar la balsa en la lista de balsas
             if self.raftCon.update_rafts_price_forecast(raft):
@@ -250,8 +254,7 @@ class dashBoardController:
         plot_widget = pg.PlotWidget(title="Precio del Salmón")
         plot_widget.setLabels(left="EUR/kg", bottom="Fechas")
         plot_widget.showGrid(x=True, y=True)
-        plot_widget.setBackground((0, 0, 0, 140))
-    
+        plot_widget.setBackground((0, 0, 0, 140))    
         # Definir una leyenda para el gráfico
         plot_widget.addLegend()
 
@@ -668,9 +671,6 @@ class dashBoardController:
         if hasattr(self, 'price_vline'):
             self.price_vline.setPos(timestamp)
 
-        # Actualizar las líneas de predicción
-        self._update_forecast_lines(perCentage, raft, isForecast)
-
     # Datos de la balsa
     def _draw_infopanel(self,pos_i,pos_j,raft):
         # Crear un widget para mostrar información de la balsa
@@ -780,7 +780,8 @@ class dashBoardController:
         plot_widget = pg.PlotWidget(title="Temperatura del mar en {0}".format(region))
         plot_widget.setLabels(left="Grados ºC", bottom="Fechas")        
         plot_widget.showGrid(x=True, y=True)
-        plot_widget.setBackground((0, 0, 0, 140))        
+        plot_widget.setBackground((0, 0, 0, 140))
+        plot_widget.addLegend()        
 
         # Agregar datos al gráfico si existen
         if raft is None or raft.getTemperature().empty:
@@ -838,22 +839,14 @@ class dashBoardController:
                 plot_widget.addItem(vline)
 
                 # Graficar los datos de temperatura
-                plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2), name="Histórico")
+                plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2), name="Temperatura del mar histórico")
                 if df_temperature_forecast is not None and not df_temperature_forecast.empty:
                     # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
                     self.x_forecast = df_temperature_forecast['ds'].map(pd.Timestamp.timestamp).values
                     self.y_forecast = df_temperature_forecast['yhat'].values
 
-                    # Añadir los items de las líneas pero no mostrarlos aún
-                    # Se actualizarán cuando se mueva el slider
-                    self.forecast_past_line = pg.PlotDataItem([], [], pen=pg.mkPen(color='r', width=2), name="Predicción pasada")
-                    self.forecast_future_line = pg.PlotDataItem([], [], pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Predicción futura")
-
-                    plot_widget.addItem(self.forecast_past_line)
-                    plot_widget.addItem(self.forecast_future_line)
-
                     # Graficar los datos de predicción de temperatura
-                    #plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='r', width=2), name="Predicción")  
+                    plot_widget.plot(self.x_forecast, self.y_forecast, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Predicción de Temperatura del mar")  
 
                 # Ajustar los rangos de los ejes de manera dinámica
                 plot_widget.setXRange(x.min(), x.max(), padding=0.1)
@@ -879,49 +872,6 @@ class dashBoardController:
         
         self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)
         return plot_widget
-    
-    # Actualizar las líneas de predicción según la posición del slider
-    # Separa los datos en pasado y futuro, incluyendo el punto de conexión en ambos
-    # y actualiza las líneas de predicción
-    def _update_forecast_lines(self, slider_value, raft, isForecast=False):        
-        if not hasattr(self, 'x_forecast') or not hasattr(self, 'y_forecast'):
-            return
-        
-        # Calcular la fecha actual según el valor del slider
-        start_date = raft.getStartDate()
-        end_date = raft.getEndDate()
-
-        # Si estamos en modo de predicción, usar el método modificado de cálculo
-        if isForecast:
-            max_forecast_date = end_date + timedelta(days=365)
-            forecast_progress = (slider_value - 75) / 25
-            forecast_days = (max_forecast_date - end_date).days
-            current_day_offset = int(forecast_days * forecast_progress)
-            current_date = end_date + timedelta(days=current_day_offset)
-        else:
-            # Comportamiento original para fechas históricas
-            if slider_value <= 75:  # Rango histórico
-                historical_progress = slider_value / 75
-                delta_days = (end_date - start_date).days
-                current_day_offset = int(delta_days * historical_progress)
-                current_date = start_date + timedelta(days=current_day_offset)
-            else:
-                # Si no es predicción pero el slider está más allá del 75%, usar end_date
-                current_date = end_date
-    
-        # Convertir a timestamp para comparar con x_forecast
-        current_timestamp = datetime.combine(current_date, datetime.min.time()).timestamp()
-    
-        # Encontrar el índice del punto más cercano a la fecha actual
-        closest_index = np.argmin(abs(self.x_forecast - current_timestamp))
-    
-        # Separar los datos en pasado y futuro, incluyendo el punto de conexión en ambos
-        past_indices = np.where(self.x_forecast <= self.x_forecast[closest_index])[0]
-        future_indices = np.where(self.x_forecast >= self.x_forecast[closest_index])[0]
-    
-        # Actualizar las líneas de predicción
-        self.forecast_past_line.setData(self.x_forecast[past_indices], self.y_forecast[past_indices])
-        self.forecast_future_line.setData(self.x_forecast[future_indices], self.y_forecast[future_indices])
 
     # Cargar las balsas marinas
     def load_rafts_from_controller(self):        

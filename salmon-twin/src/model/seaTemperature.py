@@ -77,7 +77,11 @@ class DataTemperature:
         p.fit(tempData)
         
         # Predice los datos de temperatura para el futuro
-        future_data = p.make_future_dataframe(periods, freq='D')        
+        # Se crea un DataFrame con las fechas futuras para la predicción
+        # periods: número de días a predecir
+        # freq: frecuencia de la predicción (D para días)
+        # include_history: si se incluyen los datos históricos en la predicción
+        future_data = p.make_future_dataframe(periods, freq='D', include_history=False)        
         data_forecast = p.predict(future_data)
 
         #--- Debug ---
