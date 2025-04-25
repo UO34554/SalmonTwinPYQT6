@@ -5,9 +5,9 @@ Gestor unificado de balsas marinas para el sistema Salmon Twin
 import pandas as pd
 from datetime import datetime, timedelta
 import config as cfg
-import os
+import numpy as np
 from statsforecast import StatsForecast
-from statsforecast.models import AutoARIMA, HoltWinters, ARIMA
+from statsforecast.models import AutoARIMA, HoltWinters
 
 # Se define la clase DataPrice para gestionar los datos de precios
 # Esta clase se encarga de parsear los datos de precios, ajustarlos y predecirlos
@@ -151,16 +151,18 @@ class DataPrice:
             train = data[data['ds'].dt.date <= current_date]
             test = data[data['ds'].dt.date > current_date]
             
-            # **************** Ajusta el modelo AutoARIMA ****************
-            modelo = AutoARIMA(                
-                seasonal=True,                        
-                stepwise=False,
-                trace=True,                                                        
-            )
-
+            # Modelos de predicción a utilizar
             modelos = [
-                ARIMA(order=(1, 1, 4),alias='ARIMA(1,1,4)'),  # El modelo que AutoARIMA seleccionó previamente                
-                HoltWinters(season_length=int(52*percent),alias='HoltWinters_seasonal'),  # Modelo Holt-Winters con estacionalidad anual (para datos semanales)                
+                # AutoARIMA
+                AutoARIMA(                
+                    seasonal=True,                        
+                    stepwise=False,
+                    # trace parametro para mostrar el progreso del ajuste
+                    trace=False,
+                    alias='AutoARIMA'                                                        
+                ),
+                # Modelo Holt-Winters con estacionalidad anual dentro del porcentaje de historico (para datos semanales)
+                HoltWinters(season_length=int(52*percent),alias='HoltWinters_seasonal')                  
             ]
             
             sf = StatsForecast(
@@ -189,8 +191,8 @@ class DataPrice:
 
             # 3. Añadir las fechas al DataFrame de predicción
             self._price_data_forescast['ds'] = future_dates            
-            varianza = self._price_data_forescast['ARIMA(1,1,4)'].astype(float) - self._price_data_forescast['HoltWinters_seasonal'].astype(float)
-            self._price_data_forescast['y'] = self._price_data_forescast['ARIMA(1,1,4)'].astype(float) + varianza**2
+            varianza = self._price_data_forescast['AutoARIMA'].astype(float) - self._price_data_forescast['HoltWinters_seasonal'].astype(float)
+            self._price_data_forescast['y'] = self._price_data_forescast['AutoARIMA'].astype(float) + np.abs(varianza)*0.5
             
             self._price_data_test = test.copy()
             self._price_data_train = train.copy()
