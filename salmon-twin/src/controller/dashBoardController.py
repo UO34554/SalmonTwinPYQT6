@@ -378,8 +378,7 @@ class dashBoardController:
         plot_widget.setTitle("Modelo de Crecimiento de Biomasa")
         plot_widget.setLabel("left", "Biomasa (kg)")
         plot_widget.showGrid(x=True, y=True)
-        plot_widget.setBackground((0, 0, 0, 140))
-    
+        plot_widget.setBackground((0, 0, 0, 140))    
         # Definir una leyenda para el gráfico
         plot_widget.addLegend()
     
@@ -394,9 +393,13 @@ class dashBoardController:
             df_temperature['ds'] = pd.to_datetime(df_temperature['ds'], errors='coerce')
             # Eliminar valores NaT antes de filtrar
             df_temperature = df_temperature.dropna(subset=['ds'])
-            # Filtrar los datos de temperatura con la fecha inicial y final de la balsa
+            # Filtrar los datos de temperatura con la fecha inicial y la fecha actual
+            percent = raft.getPerCentage()
+            delta_days = (raft.getEndDate() - raft.getStartDate()).days
+            days = int(delta_days * percent / 100)
+            fecha_actual = raft.getStartDate() + timedelta(days)
             df_temperature = df_temperature[(df_temperature['ds'].dt.date >= raft.getStartDate()) & 
-                                        (df_temperature['ds'].dt.date <= raft.getEndDate())]
+                                        (df_temperature['ds'].dt.date <= fecha_actual)]
         
             if df_temperature.empty:
                 # Mostrar una 'X' roja si no hay datos de temperatura
@@ -411,7 +414,8 @@ class dashBoardController:
                 initial_number_fishes = 100  # Cantidad inicial de peces
             
                 # Aplicar el modelo de crecimiento de Thyholdt devuelve el peso en KG
-                growth_data = self.growthModel.thyholdt_growth(df_temperature, 
+                df_forecast_temperature = raft.getTemperatureForecast()
+                growth_data, growth_data_forescast = self.growthModel.thyholdt_growth(df_temperature, df_forecast_temperature,
                                                          alpha, 
                                                          beta, 
                                                          mu, 
@@ -421,11 +425,14 @@ class dashBoardController:
             
                 # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
                 x = growth_data['ds'].map(pd.Timestamp.timestamp).values
+                xf = growth_data_forescast['ds'].map(pd.Timestamp.timestamp).values
                 y_biomass = growth_data['biomass'].values
+                y_biomass_f = growth_data_forescast['biomass'].values
                 y_number = growth_data['number_fishes'].values
+                y_number_f = growth_data_forescast['number_fishes'].values
             
                 # Filtros dinámicos para los ticks
-                interval = max(1, len(x) // 7) 
+                interval = max(1, len(x) // 7, len(xf) // 7)
                 ticks = [(x[i], self._format_date(x[i])) for i in range(0, len(x), interval)]
             
                 # Personalizar los ticks del eje X
@@ -435,15 +442,17 @@ class dashBoardController:
             
                 # Graficar los datos de biomasa, crecimiento individual y número de peces
                 plot_widget.plot(x, y_biomass, pen=pg.mkPen(color='g', width=2), name="Biomasa Total (kg)")
+                plot_widget.plot(xf, y_biomass_f, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine), name="Biomasa Pronosticada (kg)")
                 plot_widget.plot(x, y_number, pen=pg.mkPen(color='r', width=2), name="Nº de Peces")
+                plot_widget.plot(xf, y_number_f, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Nº de Peces Pronosticado")
 
                 # Añadir línea vertical para la fecha actual
                 self.growth_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
                 plot_widget.addItem(self.growth_vline)
 
-                # Establecer posición inicial (25% del rango)
+                # Establecer posición inicial
                 if 'x' in locals() and x.size > 0:  # Asegurarse de que hay datos
-                    initial_pos = x[0] + (x[-1] - x[0]) * 0.25
+                    initial_pos = x[0] + (x[-1] - x[0]) 
                     self.growth_vline.setPos(initial_pos)
             
         self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
