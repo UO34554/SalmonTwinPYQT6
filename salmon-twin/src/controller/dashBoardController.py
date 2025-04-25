@@ -294,6 +294,10 @@ class dashBoardController:
             # Graficar los datos históricos de precio
             plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2), 
                              name="Precio Histórico EUR/kg")
+            
+            # Crear un ScatterPlotItem para permitir el tooltip
+            scatter = pg.ScatterPlotItem(x=x, y=y, pen=pg.mkPen(None), brush=pg.mkBrush(255, 255, 255, 120), size=7)
+            plot_widget.addItem(scatter)
 
             if price_data_forescast is not None and not price_data_forescast.empty:                
                 # Asegurar que la columna 'ds' sea de tipo datetime con el formato correcto
@@ -311,8 +315,8 @@ class dashBoardController:
                 y_forecast = price_data_forescast['y'].iloc[:len(x_forecast)].values                
 
                 # Graficar los datos de precio pronosticados
-                plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='y', width=2, style=Qt.DashLine), 
-                                 name="Precio Pronosticado EUR/kg")
+                plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), 
+                                 name="Precio Pronosticado EUR/kg Promedio")                
                 
                 # Configurar el rango de visualización para mostrar desde la fecha inicial a la fecha final
                 min_x = min(x.min(), x_forecast.min())
@@ -798,9 +802,7 @@ class dashBoardController:
                 # Filtrar la predicción para mostrar solo apartir de la fecha actual
                 perCentage = raft.getPerCentage() / 100
                 delta_days = (raft.getEndDate() - raft.getStartDate()).days
-                forescast_start_date = raft.getStartDate() + timedelta(delta_days * perCentage) - timedelta(days=30)
-                # Debug -eliminar
-                forescast_start_date = raft.getStartDate()
+                forescast_start_date = raft.getStartDate() + timedelta(delta_days * perCentage) - timedelta(days=30)                
                 df_temperature_forecast = df_temperature_forecast[(df_temperature_forecast['ds'].dt.date >= forescast_start_date)]
             else:
                 df_temperature_forecast = None

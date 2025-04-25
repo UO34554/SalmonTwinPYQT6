@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import config as cfg
 import os
 from statsforecast import StatsForecast
-from statsforecast.models import AutoARIMA 
+from statsforecast.models import AutoARIMA, HoltWinters, ARIMA
 
 # Se define la clase DataPrice para gestionar los datos de precios
 # Esta clase se encarga de parsear los datos de precios, ajustarlos y predecirlos
@@ -155,11 +155,16 @@ class DataPrice:
             modelo = AutoARIMA(                
                 seasonal=True,                        
                 stepwise=False,
-                trace=False,                                                        
+                trace=True,                                                        
             )
+
+            modelos = [
+                ARIMA(order=(1, 1, 4),alias='ARIMA(1,1,4)'),  # El modelo que AutoARIMA seleccionó previamente                
+                HoltWinters(season_length=int(52*percent),alias='HoltWinters_seasonal'),  # Modelo Holt-Winters con estacionalidad anual (para datos semanales)                
+            ]
             
             sf = StatsForecast(
-                models=[modelo],
+                models=modelos,
                 freq='W', # Especifica la frecuencia de tus datos (en este caso, semanal 'W')                 
                 verbose=True  # Activar modo detallado para ver el progreso
             )
@@ -183,8 +188,9 @@ class DataPrice:
             )
 
             # 3. Añadir las fechas al DataFrame de predicción
-            self._price_data_forescast['ds'] = future_dates
-            self._price_data_forescast['y'] = self._price_data_forescast['AutoARIMA'].astype(float)  
+            self._price_data_forescast['ds'] = future_dates            
+            varianza = self._price_data_forescast['ARIMA(1,1,4)'].astype(float) - self._price_data_forescast['HoltWinters_seasonal'].astype(float)
+            self._price_data_forescast['y'] = self._price_data_forescast['ARIMA(1,1,4)'].astype(float) + varianza**2
             
             self._price_data_test = test.copy()
             self._price_data_train = train.copy()
