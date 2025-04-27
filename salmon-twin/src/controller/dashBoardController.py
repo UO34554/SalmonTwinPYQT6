@@ -344,15 +344,14 @@ class dashBoardController:
 
                 # Establecer posición inicial
                 if len(x) > 0:  # Asegurarse de que hay datos
-                    initial_pos = x[0] + (x[-1] - x[0]) * 0.25
+                    initial_pos = x[0] + (x[-1] - x[0]) * raft.getPerCentage()/100
                     self.price_vline.setPos(initial_pos)
             else:
                 # Si no hay datos de predicción, solo mostrar los históricos
                 plot_widget.setXRange(x.min(), x.max(), padding=0.1)
                 plot_widget.setYRange(y.min(), y.max(), padding=0.1)
                 
-                # Configurar los ticks para los datos históricos
-                interval = max(1, len(x) // 7)
+                # Configurar los ticks para los datos históricos                
                 indices = np.linspace(0, len(x)-1, 7).astype(int)
                 ticks = [(x[i], self._format_date(x[i])) for i in indices]
                 
@@ -431,9 +430,13 @@ class dashBoardController:
                 y_number = growth_data['number_fishes'].values
                 y_number_f = growth_data_forescast['number_fishes'].values
             
-                # Filtros dinámicos para los ticks
-                interval = max(1, len(x) // 7, len(xf) // 7)
-                ticks = [(x[i], self._format_date(x[i])) for i in range(0, len(x), interval)]
+                # Calcular puntos equidistantes a lo largo del eje X
+                num_ticks = 5  # Número de etiquetas deseadas
+                indices = np.linspace(0, len(x)-1, num_ticks).astype(int)
+                ticks = [(x[i], self._format_date(x[i])) for i in indices]
+                indices = np.linspace(0, len(xf)-1, num_ticks).astype(int)
+                ticks_f = [(xf[i], self._format_date(xf[i])) for i in indices]
+                ticks.extend(ticks_f)  # Combinar ticks de ambos conjuntos de datos
             
                 # Personalizar los ticks del eje X
                 axis = plot_widget.getAxis('bottom')
@@ -450,10 +453,9 @@ class dashBoardController:
                 self.growth_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
                 plot_widget.addItem(self.growth_vline)
 
-                # Establecer posición inicial
-                if 'x' in locals() and x.size > 0:  # Asegurarse de que hay datos
-                    initial_pos = x[0] + (x[-1] - x[0]) 
-                    self.growth_vline.setPos(initial_pos)
+                # Establecer posición inicial                
+                initial_pos = x[-2] 
+                self.growth_vline.setPos(initial_pos)
             
         self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
 
@@ -878,7 +880,7 @@ class dashBoardController:
         
                 # Si es la primera vez, inicializar la línea en la posición del slider (25%)
                 if hasattr(self, 'date_vline'):
-                    initial_pos = x[0] + (x[-1] - x[0]) * 0.25  # 25% del rango
+                    initial_pos = x[0] + (x[-1] - x[0]) * raft.getPerCentage()/100
                     self.date_vline.setPos(initial_pos)
         
         self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)
