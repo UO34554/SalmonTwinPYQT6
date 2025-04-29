@@ -430,12 +430,20 @@ class dashBoardController:
                 y_number = growth_data['number_fishes'].values
                 y_number_f = growth_data_forescast['number_fishes'].values
             
-                # Calcular puntos equidistantes a lo largo del eje X
-                num_ticks = 5  # Número de etiquetas deseadas
+                # Calcular puntos equidistantes a lo largo del eje X                
+                num_ticks = 7
                 indices = np.linspace(0, len(x)-1, num_ticks).astype(int)
                 ticks = [(x[i], self._format_date(x[i])) for i in indices]
+                # Eliminar el ultimo tick para evitar duplicados                
+                ticks.remove(ticks[-1])
+                # Añadir el tick de la fecha actual
+                #ticks.append(x[len(x)-1])
+                current_date_tick = x[len(x)-1]                
+                num_ticks = 4
                 indices = np.linspace(0, len(xf)-1, num_ticks).astype(int)
                 ticks_f = [(xf[i], self._format_date(xf[i])) for i in indices]
+                # Eliminar el primer tick para evitar duplicados
+                #ticks_f.remove(ticks_f[0])
                 ticks.extend(ticks_f)  # Combinar ticks de ambos conjuntos de datos
             
                 # Personalizar los ticks del eje X
@@ -454,7 +462,7 @@ class dashBoardController:
                 plot_widget.addItem(self.growth_vline)
 
                 # Establecer posición inicial                
-                initial_pos = x[-2] 
+                initial_pos = current_date_tick
                 self.growth_vline.setPos(initial_pos)
             
         self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
@@ -678,11 +686,11 @@ class dashBoardController:
             self.date_vline.setPos(datetime.combine(current_date, datetime.min.time()).timestamp())
 
         # Actualizar líneas verticales en todas las gráficas
-        timestamp = datetime.combine(current_date, datetime.min.time()).timestamp()
+        timestamp = pd.Timestamp(current_date).timestamp()
         if hasattr(self, 'date_vline'):
             self.date_vline.setPos(timestamp)
-        if hasattr(self, 'growth_vline'):
-            self.growth_vline.setPos(timestamp)
+        #if hasattr(self, 'growth_vline'):
+            #self.growth_vline.setPos(timestamp)
         if hasattr(self, 'price_vline'):
             self.price_vline.setPos(timestamp)
 

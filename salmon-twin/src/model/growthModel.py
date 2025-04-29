@@ -90,6 +90,12 @@ class GrowthModel:
         last_historical_date = historicalTemp.iloc[-1]['ds']
         last_historical_function = historicalTemp.iloc[-1]['function']
 
+        # Reducir la resolución de la predicción de días a meses
+        forescastTemp['ds'] = pd.to_datetime(forescastTemp['ds'].dt.to_period('M').dt.to_timestamp())
+        # Eliminar duplicados y mantener la primera ocurrencia
+        forescastTemp = forescastTemp.drop_duplicates(subset=['ds'], keep='first')
+        forescastTemp = forescastTemp.copy().reset_index(drop=True)
+
         # Calculo del modelo de crecimiento futuro
         for i in range(len(forescastTemp)):
             # Calcula el tiempo en meses desde la fecha inicial
@@ -98,7 +104,11 @@ class GrowthModel:
             f = self._thyholdt_function(date_inc, forescastTemp.loc[i,'yhat'], alpha, beta, mu)       
             
             # Calcula el factor de crecimiento usando el peso inicial y la función de crecimiento y el factor de crecimiento del mes anterior
-            growth_factor = growth_factor + (1 + f) * initial_weight
+            if i == 0:
+                growth_factor = last_growth_factor
+                f = last_historical_function
+            else:
+                growth_factor = growth_factor + (1 + f) * initial_weight
 
             # Limita el factor de crecimiento al peso máximo asintótico
             if growth_factor > alpha:
