@@ -83,6 +83,52 @@ class seaRaft:
     def getTemperature(self)->pd.DataFrame:
         return pd.DataFrame(self._temperature)
     
+    # Devuelve la fecha actual calculada a partir de la fecha de inicio y el porcentaje
+    def getCurrentDate(self)->datetime:        
+        return self._startDate + (self._endDate - self._startDate) * (self._perCentage / 100.0)
+    
+    # Devuelve la temperatura interpolada para una fecha dada
+    # Se usa el porcentage para calcular la fecha actual
+    def geCurrentDateTemperature(self)->float:    
+        if self._temperature is None or self._temperature.empty:
+            return None
+    
+        # Asegurar que trabajamos con fechas en formato datetime
+        target_date = pd.to_datetime(self.getCurrentDate())
+        sorted_temp = self.getTemperature()       
+        sorted_temp['ds'] = pd.to_datetime(self.getTemperature()['ds'])
+        # Encontrar la fecha anterior y posterior más cercanas
+        prev_date_idx = sorted_temp[sorted_temp['ds'] <= target_date]['ds'].idxmax() if not sorted_temp[sorted_temp['ds'] <= target_date].empty else None
+        next_date_idx = sorted_temp[sorted_temp['ds'] > target_date]['ds'].idxmin() if not sorted_temp[sorted_temp['ds'] > target_date].empty else None
+    
+        # Caso 1: Fecha exacta encontrada
+        if prev_date_idx is not None and sorted_temp.loc[prev_date_idx, 'ds'] == target_date:
+            return sorted_temp.loc[prev_date_idx, 'y']
+    
+        # Caso 2: Fecha está antes de la primera medición
+        if prev_date_idx is None and next_date_idx is not None:
+            return sorted_temp.loc[next_date_idx, 'y']
+    
+        # Caso 3: Fecha está después de la última medición
+        if prev_date_idx is not None and next_date_idx is None:
+            return sorted_temp.loc[prev_date_idx, 'y']
+    
+        # Caso 4: Fecha está entre dos mediciones - realizar interpolación lineal
+        if prev_date_idx is not None and next_date_idx is not None:
+            prev_date = sorted_temp.loc[prev_date_idx, 'ds']
+            next_date = sorted_temp.loc[next_date_idx, 'ds']
+            prev_temp = sorted_temp.loc[prev_date_idx, 'y']
+            next_temp = sorted_temp.loc[next_date_idx, 'y']
+        
+        # Calcular la proporción del tiempo transcurrido
+        total_days = (next_date - prev_date).total_seconds() / (60*60*24)
+        days_passed = (target_date - prev_date).total_seconds() / (60*60*24)
+        proportion = days_passed / total_days if total_days > 0 else 0
+        
+        # Interpolar linealmente
+        interpolated_temp = prev_temp + proportion * (next_temp - prev_temp)
+        return interpolated_temp
+    
     def getTemperatureForecast(self)->pd.DataFrame:
         return pd.DataFrame(self._temperatureForecast)
     

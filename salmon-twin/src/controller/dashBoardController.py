@@ -729,8 +729,8 @@ class dashBoardController:
         if raft.getTemperature().empty:
             lTemperature = QLabel("Temperatura: No disponible")
         else:
-            # Calcular la temperatura promedio
-            temp = np.mean(raft.getTemperature()['y'])
+            # Obtener la temperatura de la fecha actual            
+            temp = raft.geCurrentDateTemperature()
             # Mostrar la temperatura promedio            
             lTemperature = QLabel("Temperatura: {0:.2f} °C".format(temp))
 
