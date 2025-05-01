@@ -13,7 +13,7 @@ class seaRaft:
     # id: int, nombre: str, regionMarina: str, fechaInicio: datetime, fechaFin: datetime, temperatura: pd.DataFrame, precio: pd.DataFrame
     # temperatureForecast: pd.DataFrame, priceForecast: pd.DataFrame
     def __init__(self, id=None, name=None, seaRegion=None, startDate=None, endDate=None, perCentage=None, 
-                 temperature=None, temperatureForecast=None, price=None, priceForecast=None):
+                 temperature=None, temperatureForecast=None, price=None, priceForecast=None,growth=None, growthForecast=None):
         self._id = id
         self._name = name
         self._seaRegion = seaRegion
@@ -23,7 +23,9 @@ class seaRaft:
         self._temperature = temperature
         self._temperatureForecast = temperatureForecast
         self._price = price
-        self._priceForecast = priceForecast        
+        self._priceForecast = priceForecast
+        self._growth = growth
+        self._growthForecast = growthForecast        
 
     # --- Setters ---
     def setId(self, id:int):
@@ -57,6 +59,12 @@ class seaRaft:
 
     def setPriceForecast(self, price_forecast:pd.DataFrame):
         self._priceForecast = pd.DataFrame(price_forecast)
+
+    def setGrowth(self, growth:pd.DataFrame):
+        self._growth = pd.DataFrame(growth)
+
+    def setGrowthForecast(self, growth_forecast:pd.DataFrame):
+        self._growthForecast = pd.DataFrame(growth_forecast)
 
     # --- Getters ---
     def getId(self)->int:
@@ -138,6 +146,12 @@ class seaRaft:
     def getPriceForecast(self)->pd.DataFrame:
         return pd.DataFrame(self._priceForecast)
     
+    def getGrowth(self)->pd.DataFrame:
+        return pd.DataFrame(self._growth)
+    
+    def getGrowthForecast(self)->pd.DataFrame:
+        return pd.DataFrame(self._growthForecast)
+    
     # Convierte los datos de la balsa a un diccionario para serialización
     def to_dict(self):
         if self._temperature is not None:
@@ -188,7 +202,30 @@ class seaRaft:
             price_forecast_data = self._priceForecast.to_dict(orient='records')
         else:
             price_forecast_data = None
+        
+        if self._growth is not None:
+            # Asegurarse de que la columna 'ds' sea de tipo datetime
+            self._growth['ds'] = pd.to_datetime(self._growth['ds'], errors='coerce')
 
+            # Aplicar .isoformat() directamente a cada valor de la columna 'ds'
+            self._growth['ds'] = self._growth['ds'].apply(lambda x: x.isoformat() if pd.notnull(x) else None)
+
+            # Convertir a un formato serializable
+            growth_data = self._growth.to_dict(orient='records')
+        else:
+            growth_data = None
+
+        if self._growthForecast is not None:
+            # Asegurarse de que la columna 'ds' sea de tipo datetime
+            self._growthForecast['ds'] = pd.to_datetime(self._growthForecast['ds'], errors='coerce')
+
+            # Aplicar .isoformat() directamente a cada valor de la columna 'ds'
+            self._growthForecast['ds'] = self._growthForecast['ds'].apply(lambda x: x.isoformat() if pd.notnull(x) else None)
+
+            # Convertir a un formato serializable
+            growth_forecast_data = self._growthForecast.to_dict(orient='records')
+        else:
+            growth_forecast_data = None
 
         return {
             'id': self._id,
@@ -200,7 +237,9 @@ class seaRaft:
             'temperature': temperature_data,
             'temperatureForecast': temperature_forecast_data,
             'price': price_data,
-            'priceForecast': price_forecast_data
+            'priceForecast': price_forecast_data,
+            'growth': growth_data,
+            'growthForecast': growth_forecast_data
         }
     
     # Crea una instancia de seaRaft a partir de un diccionario
@@ -261,6 +300,22 @@ class seaRaft:
                 except Exception as e:
                     lastError = cfg.RAFTS_ERROR_PARSER_PRICE_FORECAST.format(e)
                     return None, lastError
+                
+            growth = None
+            if 'growth' in data and data['growth']:
+                try:                    
+                    growth = pd.DataFrame(data['growth'])
+                except Exception as e:
+                    lastError = cfg.RAFTS_ERROR_PARSER_GROWTH.format(e)
+                    return None, lastError
+                
+            growthForecast = None
+            if 'growthForecast' in data and data['growthForecast']:
+                try:                    
+                    growthForecast = pd.DataFrame(data['growthForecast'])
+                except Exception as e:
+                    lastError = cfg.RAFTS_ERROR_PARSER_GROWTH_FORECAST.format(e)
+                    return None, lastError
 
             # Crear el objeto seaRaft
             return seaRaft(
@@ -273,7 +328,9 @@ class seaRaft:
                 temperature=temperature,
                 temperatureForecast=temperatureForecast,
                 price=price,
-                priceForecast=priceForecast
+                priceForecast=priceForecast,
+                growth=growth,
+                growthForecast=growthForecast
             ), lastError
         except Exception as e:
             lastError = cfg.RAFTS_ERROR_FROM_DICT_TO_RAFT.format(e)

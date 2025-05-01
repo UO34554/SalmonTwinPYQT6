@@ -341,6 +341,22 @@ class raftConfigController:
                 else:
                     return True
         return False
+    
+    # Actualiza la biomasa de las balsas en el archivo de configuración
+    def update_rafts_biomass(self, raft)->bool:
+        if not self.load_rafts():
+            auxTools.show_error_message(cfg.RAFTS_LOAD_ERROR_MESSAGE.format(error=self.lastError))
+        else:
+            raftInList = self.get_raft_by_id(raft.getId())
+            if raftInList is not None:
+                raftInList.setGrowth(raft.getGrowth())
+                raftInList.setGrowthForecast(raft.getGrowthForecast())
+                raftInList.setPerCentage(raft.getPerCentage())
+                if not self._save_raft_list_data():
+                    auxTools.show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
+                else:
+                    return True
+        return False
 
 # End of raftConfigController.py
         

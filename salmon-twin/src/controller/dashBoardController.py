@@ -52,13 +52,67 @@ class dashBoardController:
         self._view.actionCSV.triggered.connect(self.on_temperature_load_csv)
         self._view.actionPredecir.triggered.connect(self.on_temperature_predict)
         self._view.actionCSVprecio.triggered.connect(self.on_price_load_csv)
-        self._view.actionPredecirPrecio.triggered.connect(self.on_price_predict)      
+        self._view.actionPredecirPrecio.triggered.connect(self.on_price_predict)
+        self._view.actionPredecirCrecimiento.triggered.connect(self.on_growth_predict)      
     
     # --- Eventos de la vista ---
     def show(self):
         # Mostrar mensaje permanente de información de las balsas marinas        
         self.label_estado.setText(cfg.RAFTS_LOADED_MESSAGE.format(count=self.raftCon.count_rafts()))
         self._view.show()
+
+    def on_growth_predict(self):
+        raft = self.choice_raft_list_dialog()
+        if raft is None:
+            return
+        
+        # Agregar datos al gráfico si existen
+        df_temperature = raft.getTemperature()
+        if df_temperature is None or df_temperature.empty:            
+            auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_DATA_ERROR)
+            return
+        else:            
+            # Convertir la columna 'ds' a formato datetime si no está ya
+            df_temperature['ds'] = pd.to_datetime(df_temperature['ds'], errors='coerce')
+            # Eliminar valores NaT antes de filtrar
+            df_temperature = df_temperature.dropna(subset=['ds'])
+            # Filtrar los datos de temperatura con la fecha inicial y la fecha actual
+            percent = raft.getPerCentage()
+            delta_days = (raft.getEndDate() - raft.getStartDate()).days
+            days = int(delta_days * percent / 100)
+            fecha_actual = raft.getStartDate() + timedelta(days)
+            df_temperature = df_temperature[(df_temperature['ds'].dt.date >= raft.getStartDate()) & 
+                                            (df_temperature['ds'].dt.date <= fecha_actual)]            
+        
+            # Parámetros del modelo Thyholdt (estos valores pueden ser ajustados según tus necesidades)
+            alpha = 7000.0               # Peso máximo asintótico en gramos (7kg)
+            beta = 0.02004161            # Coeficiente de pendiente
+            mu = 17.0                    # Punto de inflexión en meses
+            mortality_rate = 0.05        # Tasa mensual de mortandad (5%)
+            initial_weight = 100.0       # Peso inicial del salmón en gramos (100g)
+            initial_number_fishes = 100  # Cantidad inicial de peces
+            
+            # Aplicar el modelo de crecimiento de Thyholdt devuelve el peso en KG
+            df_forecast_temperature = raft.getTemperatureForecast()
+            if df_forecast_temperature is None or df_forecast_temperature.empty:
+                # Mostrar un mensaje de error temporal
+                auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_FORECAST_DATA_ERROR)
+                return
+            growth_data, growth_data_forescast = self.growthModel.thyholdt_growth(df_temperature, df_forecast_temperature,
+                                                    alpha, 
+                                                    beta, 
+                                                    mu, 
+                                                    mortality_rate, 
+                                                    initial_weight, 
+                                                    initial_number_fishes)
+            
+            raft.setGrowth(growth_data)
+            raft.setGrowthForecast(growth_data_forescast)
+            # Actualizar la balsa en la lista de balsas
+            if self.raftCon.update_rafts_biomass(raft):    
+                auxTools.show_info_dialog(cfg.DASHBOARD_PREDICT_GROWTH_SUCCESS)
+            else:
+                auxTools.show_error_message(cfg.DASHBOARD_PREDICT_GROWTH_ERROR)
 
     def on_raft_view(self):        
         self.load_rafts_from_controller()        
@@ -135,7 +189,7 @@ class dashBoardController:
             self._view.statusbar.showMessage(cfg.DASHBOARD_NO_TEMP_DATA_ERROR)
             return
         else:
-            # Implementar la predicción de la temperatura del mar seguún indica el slider
+            # Implementar la predicción de la temperatura del mar según indica el slider
             if self.dateSlider is None:
                 sliderValue = 25
             else:
@@ -399,32 +453,28 @@ class dashBoardController:
             fecha_actual = raft.getStartDate() + timedelta(days)
             df_temperature = df_temperature[(df_temperature['ds'].dt.date >= raft.getStartDate()) & 
                                         (df_temperature['ds'].dt.date <= fecha_actual)]
-        
+
+            
             if df_temperature.empty:
                 # Mostrar una 'X' roja si no hay datos de temperatura
                 plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
             else:
-                # Parámetros del modelo Thyholdt (estos valores pueden ser ajustados según tus necesidades)
-                alpha = 7000.0               # Peso máximo asintótico en gramos (7kg)
-                beta = 0.02004161            # Coeficiente de pendiente
-                mu = 17.0                    # Punto de inflexión en meses
-                mortality_rate = 0.05        # Tasa mensual de mortandad (5%)
-                initial_weight = 100.0       # Peso inicial del salmón en gramos (100g)
-                initial_number_fishes = 100  # Cantidad inicial de peces
+                # Obtener los datos de crecimiento
+                growth_data = raft.getGrowth()
+                growth_data_forescast = raft.getGrowthForecast()
+                if growth_data is None or growth_data.empty:
+                    # Mostrar una 'X' roja si no hay datos de crecimiento
+                    plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
+                    self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
+                    return
             
-                # Aplicar el modelo de crecimiento de Thyholdt devuelve el peso en KG
-                df_forecast_temperature = raft.getTemperatureForecast()
-                growth_data, growth_data_forescast = self.growthModel.thyholdt_growth(df_temperature, df_forecast_temperature,
-                                                         alpha, 
-                                                         beta, 
-                                                         mu, 
-                                                         mortality_rate, 
-                                                         initial_weight, 
-                                                         initial_number_fishes)
-            
-                # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
-                x = growth_data['ds'].map(pd.Timestamp.timestamp).values
-                xf = growth_data_forescast['ds'].map(pd.Timestamp.timestamp).values
+                # Convertir fechas a objetos datetime primero
+                x_dates = pd.to_datetime(growth_data['ds'], errors='coerce')
+                xf_dates = pd.to_datetime(growth_data_forescast['ds'], errors='coerce')
+
+                # Luego convertir a timestamps numéricos para graficar y etiquetas
+                x = x_dates.map(pd.Timestamp.timestamp).values
+                xf = xf_dates.map(pd.Timestamp.timestamp).values                
                 y_biomass = growth_data['biomass'].values
                 y_biomass_f = growth_data_forescast['biomass'].values
                 y_number = growth_data['number_fishes'].values
@@ -436,15 +486,13 @@ class dashBoardController:
                 ticks = [(x[i], self._format_date(x[i])) for i in indices]
                 # Eliminar el ultimo tick para evitar duplicados                
                 ticks.remove(ticks[-1])
-                # Añadir el tick de la fecha actual
-                #ticks.append(x[len(x)-1])
+                # Añadir el tick de la fecha actual                
                 current_date_tick = x[len(x)-1]                
                 num_ticks = 4
                 indices = np.linspace(0, len(xf)-1, num_ticks).astype(int)
                 ticks_f = [(xf[i], self._format_date(xf[i])) for i in indices]
-                # Eliminar el primer tick para evitar duplicados
-                #ticks_f.remove(ticks_f[0])
-                ticks.extend(ticks_f)  # Combinar ticks de ambos conjuntos de datos
+                # Combinar ticks de ambos conjuntos de datos
+                ticks.extend(ticks_f)  
             
                 # Personalizar los ticks del eje X
                 axis = plot_widget.getAxis('bottom')

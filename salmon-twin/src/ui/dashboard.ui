@@ -116,9 +116,16 @@ QStatusBar {
     <addaction name="menuCargarPrecio"/>
     <addaction name="actionPredecirPrecio"/>
    </widget>
+   <widget class="QMenu" name="menuCrecimiento">
+    <property name="title">
+     <string>Crecimiento</string>
+    </property>
+    <addaction name="actionPredecirCrecimiento"/>
+   </widget>
    <addaction name="menuBalsas"/>
    <addaction name="menuTemperatura"/>
    <addaction name="menuPrecio"/>
+   <addaction name="menuCrecimiento"/>
   </widget>
   <widget class="QStatusBar" name="statusbar">
    <property name="minimumSize">
@@ -161,6 +168,11 @@ QStatusBar {
    </property>
   </action>
   <action name="actionPredecirPrecio">
+   <property name="text">
+    <string>Predecir</string>
+   </property>
+  </action>
+  <action name="actionPredecirCrecimiento">
    <property name="text">
     <string>Predecir</string>
    </property>
