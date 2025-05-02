@@ -85,12 +85,13 @@ class dashBoardController:
                                             (df_temperature['ds'].dt.date <= fecha_actual)]            
         
             # Parámetros del modelo Thyholdt (estos valores pueden ser ajustados según tus necesidades)
-            alpha = 7000.0               # Peso máximo asintótico en gramos (7kg)
-            beta = 0.02004161            # Coeficiente de pendiente
-            mu = 17.0                    # Punto de inflexión en meses
-            mortality_rate = 0.05        # Tasa mensual de mortandad (5%)
-            initial_weight = 100.0       # Peso inicial del salmón en gramos (100g)
-            initial_number_fishes = 100  # Cantidad inicial de peces
+            alpha = 7000.0                                  # Peso máximo asintótico en gramos (7kg)
+            beta = 0.02004161                               # Coeficiente de pendiente
+            mu = 17.0                                       # Punto de inflexión en meses
+            mortality_rate = 0.05                           # Tasa mensual de mortandad (5%)
+            initial_weight = 100.0                          # Peso inicial del salmón en gramos (100g)
+            raft.setNumberFishes(100)                       # Número inicial de peces (100 peces)
+            initial_number_fishes = raft.getNumberFishes()  # Cantidad inicial de peces
             
             # Aplicar el modelo de crecimiento de Thyholdt devuelve el peso en KG
             df_forecast_temperature = raft.getTemperatureForecast()
@@ -300,7 +301,7 @@ class dashBoardController:
         self._draw_price(2,1,raft)
         self._draw_schematic(0,0)
         self._draw_infopanel(1,0,raft)
-        self._draw_schematic_3d(2,0)
+        self._draw_schematic_3d(2,0,raft)
 
     # Dibujar el precio del salmón
     def _draw_price(self, pos_i, pos_j, raft):
@@ -516,7 +517,7 @@ class dashBoardController:
         self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
 
     # --- Grafico 3d ---   
-    def _draw_schematic_3d(self,pos_i,pos_j):
+    def _draw_schematic_3d(self,pos_i,pos_j,raft):
         # Crear un widget 3D
         view = gl.GLViewWidget()
         view.setBackgroundColor((55, 43, 38, 0))
@@ -533,7 +534,7 @@ class dashBoardController:
         # Dibujar flotadores alrededor de la balsa
         self._create_flotadores(view)
         # Dibujar peces dentro de la red
-        self._create_fish(view)
+        self._create_fish(view,raft)
         # Mostrar el widget 3D
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
 
@@ -586,11 +587,12 @@ class dashBoardController:
             view.addItem(sphere)    
 
     # Crear peces (esferas pequeñas dentro de la red)
-    def _create_fish(self, view):
+    def _create_fish(self, view, raft):
         # Crear peces (esferas pequeñas dentro de la red)
         self.fish_items = []
-        self.fish_positions = [] 
-        self.fish_count = 150  # Número de peces
+        self.fish_positions = []
+        # Número de peces
+        self.fish_count = raft.getNumberFishes()  
         for _ in range(self.fish_count):
             x = random.uniform(-7, 7)
             y = random.uniform(-7, 7)

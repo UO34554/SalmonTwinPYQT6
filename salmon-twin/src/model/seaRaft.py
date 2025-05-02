@@ -13,7 +13,8 @@ class seaRaft:
     # id: int, nombre: str, regionMarina: str, fechaInicio: datetime, fechaFin: datetime, temperatura: pd.DataFrame, precio: pd.DataFrame
     # temperatureForecast: pd.DataFrame, priceForecast: pd.DataFrame
     def __init__(self, id=None, name=None, seaRegion=None, startDate=None, endDate=None, perCentage=None, 
-                 temperature=None, temperatureForecast=None, price=None, priceForecast=None,growth=None, growthForecast=None):
+                 temperature=None, temperatureForecast=None, price=None, priceForecast=None,growth=None, growthForecast=None,
+                 numberFishes=None):
         self._id = id
         self._name = name
         self._seaRegion = seaRegion
@@ -25,7 +26,8 @@ class seaRaft:
         self._price = price
         self._priceForecast = priceForecast
         self._growth = growth
-        self._growthForecast = growthForecast        
+        self._growthForecast = growthForecast
+        self._numberFishes = numberFishes        
 
     # --- Setters ---
     def setId(self, id:int):
@@ -65,6 +67,9 @@ class seaRaft:
 
     def setGrowthForecast(self, growth_forecast:pd.DataFrame):
         self._growthForecast = pd.DataFrame(growth_forecast)
+
+    def setNumberFishes(self, numberFishes:int):
+        self._numberFishes = int(numberFishes)
 
     # --- Getters ---
     def getId(self)->int:
@@ -151,6 +156,12 @@ class seaRaft:
     
     def getGrowthForecast(self)->pd.DataFrame:
         return pd.DataFrame(self._growthForecast)
+    
+    def getNumberFishes(self)->int:
+        if self._numberFishes is None:
+            return 0
+        else:
+            return self._numberFishes
     
     # Convierte los datos de la balsa a un diccionario para serialización
     def to_dict(self):
