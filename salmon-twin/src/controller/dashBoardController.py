@@ -299,8 +299,8 @@ class dashBoardController:
         self.temperature_plot_widget = self._draw_graph_temperature(0,1,raft)        
         self._draw_growth_model(1,1,raft)
         self._draw_price(2,1,raft)
-        self._draw_schematic(0,0)
-        self._draw_infopanel(1,0,raft)
+        self._draw_infopanel(0,0,raft)
+        self._draw_schematic(1,0)        
         self._draw_schematic_3d(2,0,raft)
 
     # Dibujar el precio del salmón
@@ -592,7 +592,7 @@ class dashBoardController:
         self.fish_items = []
         self.fish_positions = []
         # Número de peces
-        self.fish_count = raft.getNumberFishes()  
+        self.fish_count = int(raft.getCurrentNumberFishes())
         for _ in range(self.fish_count):
             x = random.uniform(-7, 7)
             y = random.uniform(-7, 7)
@@ -661,8 +661,14 @@ class dashBoardController:
 
         view.setScene(scene)
 
-        # Dimensiones y colores
-        cage_radius = 70
+        # Configurar un tamaño inicial para la escena
+        scene_size = self._view.centralwidget.height() // 3
+        cage_radius = scene_size / 2
+
+        # Definir el área de la escena
+        scene.setSceneRect(-scene_size/2, -scene_size/2, scene_size, scene_size)        
+
+        # Colores        
         net_color = QColor(100, 100, 255, 150)  # Azul semitransparente
         float_color = QColor(200, 200, 200)      # Gris claro
         support_color = QColor(150, 150, 150)    # Gris oscuro
@@ -756,21 +762,29 @@ class dashBoardController:
         lRegion = QLabel("Región del mar: {0}".format(raft.getSeaRegion()))
         lLocation = QLabel("Ubicación: 12.3456, -78.9012")
         lDepth = QLabel("Profundidad: 10 m")
+        lnumberFishes = QLabel("Número de peces: {0}".format(raft.getNumberFishes()))
         # Añadir un slider para simular la fecha actual de la balsa desde la fecha de inicio a la fecha final        
         sliderLayout = QHBoxLayout()
         sliderView = QWidget()
         sliderView.setLayout(sliderLayout)
-
-        # El texto inicial será para la fecha de inicio de la balsa        
-        lcurrentDate = QLabel("Fecha actual: " + raft.getStartDate().strftime("%d de %B de %Y"))
-        sliderLayout.addWidget(lcurrentDate)
 
         # Configurar el slider con el rango 0-100
         self.dateSlider = QSlider(Qt.Horizontal)
         self.dateSlider.setMinimum(0)
         self.dateSlider.setMaximum(100)            
         self.dateSlider.setValue(raft.getPerCentage())
+
+        # El texto inicial será para la fecha de inicio de la balsa        
+        lcurrentDate = QLabel("Fecha actual: " + raft.getStartDate().strftime("%d de %B de %Y"))
+        lcurrentFishNumber = QLabel("Número de peces: {0:.0f}".format(raft.getCurrentNumberFishes()))
+        lcurrentBiomass = QLabel("Biomasa: {0:.2f} kg".format(raft.getCurrentBiomass()))
+        sliderLayout.addWidget(lcurrentDate)
+        sliderLayout.addWidget(lcurrentFishNumber)
+        sliderLayout.addWidget(lcurrentBiomass)
+        sliderLayout.addWidget(self.dateSlider)
+
         self._update_current_date(raft.getPerCentage(),raft,lcurrentDate)
+        
        
         # Mostrar las fechas de inicio y fin en formato de idioma castellano        
         formatted_start_date = raft.getStartDate().strftime("%d de %B de %Y")
@@ -800,7 +814,10 @@ class dashBoardController:
         lDepth.setStyleSheet(label_style)
         lFechas.setStyleSheet(label_style)
         lTemperature.setStyleSheet(label_style)
-        lcurrentDate.setStyleSheet(label_style)        
+        lnumberFishes.setStyleSheet(label_style)
+        lcurrentDate.setStyleSheet(label_style)
+        lcurrentFishNumber.setStyleSheet(label_style)
+        lcurrentBiomass.setStyleSheet(label_style)
 
         # Añadir los QLabel al layout
         layout.addWidget(lName)
@@ -809,9 +826,9 @@ class dashBoardController:
         layout.addWidget(lDepth)        
         layout.addWidget(lTemperature)
         layout.addWidget(lFechas)
+        layout.addWidget(lnumberFishes)
         # Añadir el slider al layout
-        layout.addWidget(sliderView)        
-        layout.addWidget(self.dateSlider)
+        layout.addWidget(sliderView)
 
         # Conectar el evento de cambio de valor del slider
         self.dateSlider.valueChanged.connect(lambda value: self._update_current_date(value, raft, lcurrentDate))
