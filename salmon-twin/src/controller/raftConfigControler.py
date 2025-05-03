@@ -352,6 +352,7 @@ class raftConfigController:
                 raftInList.setGrowth(raft.getGrowth())
                 raftInList.setGrowthForecast(raft.getGrowthForecast())
                 raftInList.setPerCentage(raft.getPerCentage())
+                raftInList.setNumberFishes(raft.getNumberFishes())
                 if not self._save_raft_list_data():
                     auxTools.show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
                 else:

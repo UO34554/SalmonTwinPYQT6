@@ -238,6 +238,11 @@ class seaRaft:
         else:
             growth_forecast_data = None
 
+        if self._numberFishes is not None:
+            numberFishes = int(self._numberFishes)
+        else:
+            numberFishes = 0
+
         return {
             'id': self._id,
             'name': self._name,
@@ -250,7 +255,8 @@ class seaRaft:
             'price': price_data,
             'priceForecast': price_forecast_data,
             'growth': growth_data,
-            'growthForecast': growth_forecast_data
+            'growthForecast': growth_forecast_data,
+            'numberFishes': numberFishes
         }
     
     # Crea una instancia de seaRaft a partir de un diccionario
@@ -341,7 +347,8 @@ class seaRaft:
                 price=price,
                 priceForecast=priceForecast,
                 growth=growth,
-                growthForecast=growthForecast
+                growthForecast=growthForecast,
+                numberFishes=data.get('numberFishes')
             ), lastError
         except Exception as e:
             lastError = cfg.RAFTS_ERROR_FROM_DICT_TO_RAFT.format(e)
