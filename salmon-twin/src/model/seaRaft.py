@@ -244,6 +244,50 @@ class seaRaft:
             # Interpolar linealmente
             interpolated_number_fishes = prev_number_fishes + proportion * (next_number_fishes - prev_number_fishes)
             return interpolated_number_fishes
+        
+    def getCurrentPrice(self)->float:
+        if self._price is None or self._price.empty:
+            return 0.0
+        
+        # Asegurar que trabajamos con fechas en formato datetime
+        target_date = pd.to_datetime(self.getCurrentDate())
+        sorted_price = self.getPrice()
+        sorted_price['timestamp'] = pd.to_datetime(self.getPrice()['timestamp'])
+        
+        # Encontrar la fecha anterior y posterior más cercanas
+        prev_date_idx = sorted_price[sorted_price['timestamp'] <= target_date]['timestamp'].idxmax() if not sorted_price[sorted_price['timestamp'] <= target_date].empty else None
+        next_date_idx = sorted_price[sorted_price['timestamp'] > target_date]['timestamp'].idxmin() if not sorted_price[sorted_price['timestamp'] > target_date].empty else None
+        
+        # Caso 1: Fecha exacta encontrada
+        if prev_date_idx is not None and sorted_price.loc[prev_date_idx, 'timestamp'] == target_date:
+            return sorted_price.loc[prev_date_idx, 'EUR_kg']
+    
+        # Caso 2: Fecha está antes de la primera medición
+        if prev_date_idx is None and next_date_idx is not None:
+            return sorted_price.loc[next_date_idx, 'EUR_kg']
+    
+        # Caso 3: Fecha está después de la última medición
+        if prev_date_idx is not None and next_date_idx is None:
+            return sorted_price.loc[prev_date_idx, 'EUR_kg']
+    
+        # Caso 4: Fecha está entre dos mediciones - realizar interpolación lineal
+        if prev_date_idx is not None and next_date_idx is not None:
+            prev_date = sorted_price.loc[prev_date_idx, 'timestamp']
+            next_date = sorted_price.loc[next_date_idx, 'timestamp']
+            prev_price = sorted_price.loc[prev_date_idx, 'EUR_kg']
+            next_price = sorted_price.loc[next_date_idx, 'EUR_kg']
+        
+            # Calcular la proporción del tiempo transcurrido
+            total_days = (next_date - prev_date).total_seconds() / (60*60*24)
+            days_passed = (target_date - prev_date).total_seconds() / (60*60*24)
+            proportion = days_passed / total_days if total_days > 0 else 0
+        
+            # Interpolar linealmente
+            interpolated_price = prev_price + proportion * (next_price - prev_price)
+            return interpolated_price
+        
+    def getCurrentTotalValue(self)->float:
+        return self.getCurrentBiomass() * self.getCurrentPrice()
     
     # Convierte los datos de la balsa a un diccionario para serialización
     def to_dict(self):
