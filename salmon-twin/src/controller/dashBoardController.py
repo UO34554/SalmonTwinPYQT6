@@ -717,36 +717,36 @@ class dashBoardController:
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
     # --- Fin Grafico 2d ---
 
-    # Función para actualizar la etiqueta de la fecha cuando cambia el valor del slider
-    def _update_current_date(self,perCentage,raft,lcurrentDate):
-        start_date = raft.getStartDate()
-        end_date = raft.getEndDate()        
-        # Variable boolean para determinar si se está en el periodo de pronóstico
-        # Si no hay datos de pronóstico, no se necesita esta variable
-        isForecast = False        
-        # Si no hay datos de pronóstico, simplemente mapeamos 0-100 al rango histórico
-        delta_days = (end_date - start_date).days
-        if delta_days > 0:  # Protect against division by zero
-            current_day_offset = int(delta_days * (perCentage / 100))
-            current_date = start_date + timedelta(days=current_day_offset)
+    def _update_forescast_date(self,perCentage,raft,lforescastDate):
+        # Mapeamos 0-100 desde la fecha actual hasta la fecha máxima de pronosticada
+        delta_days = (raft.getMaxForecastDate() - raft.getCurrentDate()).days        
+        current_day_offset = int(delta_days * (perCentage / 100))
+        current_date = raft.getStartDate() + timedelta(days=current_day_offset)
 
         # Formatear la fecha y actualizar la etiqueta
         formatted_date = current_date.strftime("%d de %B de %Y")
-        if isForecast:
-            lcurrentDate.setText("Fecha actual (predicción): " + formatted_date)
-        else:
-            lcurrentDate.setText("Fecha actual: " + formatted_date)            
+        lforescastDate.setText("Fecha pronóstico: " + formatted_date)
 
-        # Actualizar la posición de la línea vertical si existe
-        if hasattr(self, 'date_vline'):
-            self.date_vline.setPos(datetime.combine(current_date, datetime.min.time()).timestamp())
+    # Función para actualizar la etiqueta de la fecha cuando cambia el valor del slider
+    # Actualiza las lineas verticales en todas las gráficas
+    def _update_current_date(self,perCentage,raft,lcurrentDate):
+        start_date = raft.getStartDate()
+        end_date = raft.getEndDate()
+        # Mapeamos 0-100 al rango histórico
+        delta_days = (end_date - start_date).days        
+        current_day_offset = int(delta_days * (perCentage / 100))
+        current_date = start_date + timedelta(days=current_day_offset)
+
+        # Formatear la fecha y actualizar la etiqueta
+        formatted_date = current_date.strftime("%d de %B de %Y")
+        lcurrentDate.setText("Fecha actual: " + formatted_date)
 
         # Actualizar líneas verticales en todas las gráficas
         timestamp = pd.Timestamp(current_date).timestamp()
         if hasattr(self, 'date_vline'):
             self.date_vline.setPos(timestamp)
-        #if hasattr(self, 'growth_vline'):
-            #self.growth_vline.setPos(timestamp)
+        if hasattr(self, 'growth_vline'):
+            self.growth_vline.setPos(timestamp)
         if hasattr(self, 'price_vline'):
             self.price_vline.setPos(timestamp)
 
@@ -795,6 +795,8 @@ class dashBoardController:
         lforescastDate = QLabel("Fecha pronóstico: " + raft.getStartDate().strftime("%d de %B de %Y"))
         lforescastFishNumber = QLabel("Pronóstico número de peces: {0:.0f}".format(raft.getCurrentNumberFishes()))
         lforescastBiomass = QLabel("Pronóstico Biomasa: {0:.2f} kg".format(raft.getCurrentBiomass()))
+        lforescastPrice = QLabel("Pronóstico Precio: {0:.2f} EUR/kg".format(raft.getCurrentPrice()))
+        lforescastTotalValue = QLabel("Pronóstico Valor total: {0:.2f} EUR".format(raft.getCurrentTotalValue()))
 
         sliderLayoutCurrent.addWidget(lcurrentDate,0,0)
         sliderLayoutCurrent.addWidget(lcurrentFishNumber,0,1)
@@ -806,12 +808,9 @@ class dashBoardController:
         sliderLayoutForescast.addWidget(lforescastDate,0,0)
         sliderLayoutForescast.addWidget(lforescastFishNumber,0,1)
         sliderLayoutForescast.addWidget(lforescastBiomass,0,2)
-
-
-        sliderLayoutForescast.addWidget(self.dateSliderForecast,1,0,1,3)        
-
-        self._update_current_date(raft.getPerCentage(),raft,lcurrentDate)
-        
+        sliderLayoutForescast.addWidget(lforescastPrice,0,3)
+        sliderLayoutForescast.addWidget(lforescastTotalValue,0,4)
+        sliderLayoutForescast.addWidget(self.dateSliderForecast,1,0,1,5)
        
         # Mostrar las fechas de inicio y fin en formato de idioma castellano        
         formatted_start_date = raft.getStartDate().strftime("%d de %B de %Y")
@@ -826,7 +825,7 @@ class dashBoardController:
             lTemperature = QLabel("Temperatura: {0:.2f} °C".format(temp))
 
         # Estilo para los QLabel
-        label_style = """
+        label_style_small = """
             QLabel {
                 font-size: 12px; /* Tamaño de la letra */
                 background-color: rgba(200, 200, 200, 150); /* Fondo semitransparente */
@@ -835,22 +834,53 @@ class dashBoardController:
                 padding: 1px; /* Margen interno */
             }
         """
-        lName.setStyleSheet(label_style)
-        lRegion.setStyleSheet(label_style)
-        lLocation.setStyleSheet(label_style)
-        lDepth.setStyleSheet(label_style)
-        lFechas.setStyleSheet(label_style)
-        lTemperature.setStyleSheet(label_style)
-        lnumberFishes.setStyleSheet(label_style)
-        lcurrentDate.setStyleSheet(label_style)
-        lcurrentFishNumber.setStyleSheet(label_style)
-        lcurrentBiomass.setStyleSheet(label_style)
-        lcurrentPrice.setStyleSheet(label_style)
-        lcurrentTotalValue.setStyleSheet(label_style)
+        label_style_medium = """
+            QLabel {
+                font-size: 14px; /* Tamaño de la letra */
+                background-color: rgba(200, 200, 200, 150); /* Fondo semitransparente */
+                color: black; /* Color del texto */
+                border: 1px solid gray; /* Opcional: borde */
+                padding: 1px; /* Margen interno */
+            }
+        """
+        label_style_big = """
+            QLabel {
+                font-size: 18px; /* Tamaño de la letra */
+                background-color: rgba(200, 200, 200, 150); /* Fondo semitransparente */
+                color: black; /* Color del texto */
+                border: 1px solid gray; /* Opcional: borde */
+                padding: 1px; /* Margen interno */
+            }
+        """
+        label_style_huge = """
+            QLabel {
+                font-size: 24px; /* Tamaño de la letra */
+                background-color: rgba(200, 200, 200, 150); /* Fondo semitransparente */
+                color: black; /* Color del texto */
+                border: 1px solid gray; /* Opcional: borde */
+                padding: 1px; /* Margen interno */
+            }
+        """
+        lName.setStyleSheet(label_style_huge)
+        lRegion.setStyleSheet(label_style_big)
+        lFechas.setStyleSheet(label_style_big)
 
-        lforescastDate.setStyleSheet(label_style)
-        lforescastFishNumber.setStyleSheet(label_style)
-        lforescastBiomass.setStyleSheet(label_style)
+        lLocation.setStyleSheet(label_style_medium)
+        lDepth.setStyleSheet(label_style_medium)        
+        lTemperature.setStyleSheet(label_style_medium)
+        lnumberFishes.setStyleSheet(label_style_medium)
+
+        lcurrentDate.setStyleSheet(label_style_small)
+        lcurrentFishNumber.setStyleSheet(label_style_small)
+        lcurrentBiomass.setStyleSheet(label_style_small)
+        lcurrentPrice.setStyleSheet(label_style_small)
+        lcurrentTotalValue.setStyleSheet(label_style_medium)
+
+        lforescastDate.setStyleSheet(label_style_small)
+        lforescastFishNumber.setStyleSheet(label_style_small)
+        lforescastBiomass.setStyleSheet(label_style_small)
+        lforescastPrice.setStyleSheet(label_style_small)
+        lforescastTotalValue.setStyleSheet(label_style_medium)
 
         # Añadir los QLabel al layout
         layout.addWidget(lName,0,0,1,1)
@@ -867,7 +897,10 @@ class dashBoardController:
         layout.addWidget(sliderViewForescast,4,0,1,4)
 
         # Conectar el evento de cambio de valor del slider
+        self._update_current_date(raft.getPerCentage(),raft,lcurrentDate)
         self.dateSliderCurrent.valueChanged.connect(lambda value: self._update_current_date(value, raft, lcurrentDate))
+        self._update_forescast_date(raft.getPerCentage(),raft,lforescastDate)
+        self.dateSliderForecast.valueChanged.connect(lambda value: self._update_forescast_date(value, raft, lforescastDate))
 
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
 
@@ -875,7 +908,8 @@ class dashBoardController:
     def _format_date(self, value):
         date = datetime.fromtimestamp(value)
         return date.strftime('%d/%m/%Y')
-      
+
+    ''' 
     # Mostrar un tooltip con la fecha y la temperatura y una línea vertical
     def _mouse_move_plot(self, event, plot_widget, x, y, y_forecast, vline):
         pos = event
@@ -895,6 +929,7 @@ class dashBoardController:
         else:
             vline.hide()
             plot_widget.setToolTip(None)
+    '''
 
     # Graficar una serie temporal
     def _draw_graph_temperature(self,pos_i,pos_j,raft):        
@@ -976,6 +1011,7 @@ class dashBoardController:
                 plot_widget.setXRange(x.min(), x.max(), padding=0.1)
                 plot_widget.setYRange(y.min(), y.max(), padding=0.1)
 
+                '''
                 # Conectar el evento de movimiento del ratón
                 if df_temperature_forecast is not None:
                     def on_mouse_move(event):self._mouse_move_plot(event, plot_widget, x, y, self.y_forecast, vline)
@@ -984,6 +1020,7 @@ class dashBoardController:
 
                 # Conectar el evento de movimiento del ratón
                 plot_widget.scene().sigMouseMoved.connect(on_mouse_move)
+                '''
 
                 # Añadir línea vertical para la fecha actual (usa un color diferente)
                 self.date_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))

@@ -98,7 +98,40 @@ class seaRaft:
     
     # Devuelve la fecha actual calculada a partir de la fecha de inicio y el porcentaje
     def getCurrentDate(self)->datetime:        
-        return self._startDate + (self._endDate - self._startDate) * (self._perCentage / 100.0)
+        return pd.to_datetime(self._startDate + (self._endDate - self._startDate) * (self._perCentage / 100.0))
+    
+    # Devuelve la fecha máxima de predicción si la hay
+    # qué será la maxima de la temperatura, el precio y el crecimiento
+    def getMaxForecastDate(self)->datetime:
+        # Inicializar todas las fechas con la fecha actual
+        max_date = self.getCurrentDate()
+        max_date_temp = max_date
+        max_date_price = max_date
+        max_date_growth = max_date
+    
+        # Obtener la fecha máxima del pronóstico de temperatura si existe
+        if self._temperatureForecast is not None and not self._temperatureForecast.empty:
+            # Convertir a datetime si es necesario
+            temp_dates = pd.to_datetime(self._temperatureForecast['ds'])
+            if not temp_dates.empty:
+                max_date_temp = temp_dates.max()
+    
+        # Obtener la fecha máxima del pronóstico de precio si existe
+        if self._priceForecast is not None and not self._priceForecast.empty:
+            # Convertir a datetime si es necesario
+            price_dates = pd.to_datetime(self._priceForecast['ds'])
+            if not price_dates.empty:
+                max_date_price = price_dates.max()
+    
+        # Obtener la fecha máxima del pronóstico de crecimiento si existe
+        if self._growthForecast is not None and not self._growthForecast.empty:
+            # Convertir a datetime si es necesario
+            growth_dates = pd.to_datetime(self._growthForecast['ds'])
+            if not growth_dates.empty:
+                max_date_growth = growth_dates.max()
+    
+        # Comparar todas las fechas (ahora todas son datetime)
+        return max(max_date, max_date_temp, max_date_price, max_date_growth)
     
     # Devuelve la temperatura interpolada para una fecha dada
     # Se usa el porcentage para calcular la fecha actual
