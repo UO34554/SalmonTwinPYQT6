@@ -314,8 +314,8 @@ class dashBoardController:
         plot_widget.addLegend()
 
         # Obtener los datos de precios
-        price_data = raft.getPrice()        
-        price_data_forescast = raft.getPriceForecast()
+        price_data = raft.getPriceData()        
+        price_data_forescast = raft.getPriceForecastData()
     
         if price_data is None or price_data.empty:
             # Mostrar una 'X' roja si no hay datos de precios
@@ -394,13 +394,10 @@ class dashBoardController:
                 axis.setLabel("", units="")
 
                 # Añadir línea vertical para la fecha actual
+                self.price_vline_forescast = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine))
+                plot_widget.addItem(self.price_vline_forescast)
                 self.price_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
-                plot_widget.addItem(self.price_vline)
-
-                # Establecer posición inicial
-                if len(x) > 0:  # Asegurarse de que hay datos
-                    initial_pos = x[0] + (x[-1] - x[0]) * raft.getPerCentage()/100
-                    self.price_vline.setPos(initial_pos)
+                plot_widget.addItem(self.price_vline)                
             else:
                 # Si no hay datos de predicción, solo mostrar los históricos
                 plot_widget.setXRange(x.min(), x.max(), padding=0.1)
@@ -414,14 +411,10 @@ class dashBoardController:
                 axis.setTicks([ticks])
                 axis.setLabel("", units="")
                 
-                # Añadir línea vertical para la fecha actual
+                # Añadir línea vertical para la fecha actual                
                 self.price_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
                 plot_widget.addItem(self.price_vline)
                 
-                if len(x) > 0:
-                    initial_pos = x[0] + (x[-1] - x[0]) * 0.25
-                    self.price_vline.setPos(initial_pos)
-
         # Agregar el widget al layout
         self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
 
@@ -461,8 +454,8 @@ class dashBoardController:
                 plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
             else:
                 # Obtener los datos de crecimiento
-                growth_data = raft.getGrowth()
-                growth_data_forescast = raft.getGrowthForecast()
+                growth_data = raft.getGrowthData()
+                growth_data_forescast = raft.getGrowthForecastData()
                 if growth_data is None or growth_data.empty:
                     # Mostrar una 'X' roja si no hay datos de crecimiento
                     plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
@@ -507,6 +500,8 @@ class dashBoardController:
                 plot_widget.plot(xf, y_number_f, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Nº de Peces Pronosticado")
 
                 # Añadir línea vertical para la fecha actual
+                self.growth_vline_forescast = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine))
+                plot_widget.addItem(self.growth_vline_forescast)
                 self.growth_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
                 plot_widget.addItem(self.growth_vline)
 
@@ -717,15 +712,30 @@ class dashBoardController:
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
     # --- Fin Grafico 2d ---
 
-    def _update_forescast_date(self,perCentage,raft,lforescastDate):
+    def _update_forescast_date(self,perCentage,raft,lforescastDate,lforescastFishNumber,lforescastBiomass,lforescastPrice,lforescastTotalValue):
         # Mapeamos 0-100 desde la fecha actual hasta la fecha máxima de pronosticada
-        delta_days = (raft.getMaxForecastDate() - raft.getCurrentDate()).days        
+        current_date = raft.getCurrentDate()
+        max_date = raft.getMaxForecastDate()
+        delta_days = (max_date - current_date).days        
         current_day_offset = int(delta_days * (perCentage / 100))
-        current_date = raft.getStartDate() + timedelta(days=current_day_offset)
+        current_date = current_date + timedelta(days=current_day_offset)
 
         # Formatear la fecha y actualizar la etiqueta
         formatted_date = current_date.strftime("%d de %B de %Y")
-        lforescastDate.setText("Fecha pronóstico: " + formatted_date)
+        lforescastDate.setText("Fecha pronóstico: " + formatted_date)        
+        lforescastFishNumber.setText("Pronóstico número de peces: {0:.0f}".format(raft.getNumberFishesForecast(current_date)))
+        lforescastBiomass.setText("Pronóstico Biomasa: {0:.2f} kg".format(raft.getBiomassForecast(current_date)))
+        lforescastPrice.setText("Pronóstico Precio: {0:.2f} EUR/kg".format(raft.getPriceForecast(current_date)))
+        lforescastTotalValue.setText("Pronóstico Valor total: {0:.2f} EUR".format(raft.getTotalValueForecast(current_date)))
+
+        # Actualizar líneas verticales en todas las gráficas
+        timestamp = pd.Timestamp(current_date).timestamp()
+        if hasattr(self, 'date_vline_forescast'):
+            self.date_vline_forescast.setPos(timestamp)
+        if hasattr(self, 'growth_vline_forescast'):
+            self.growth_vline_forescast.setPos(timestamp)
+        if hasattr(self, 'price_vline_forescast'):
+            self.price_vline_forescast.setPos(timestamp)
 
     # Función para actualizar la etiqueta de la fecha cuando cambia el valor del slider
     # Actualiza las lineas verticales en todas las gráficas
@@ -792,7 +802,7 @@ class dashBoardController:
         lcurrentPrice = QLabel("Precio: {0:.2f} EUR/kg".format(raft.getCurrentPrice()))
         lcurrentTotalValue = QLabel("Valor total: {0:.2f} EUR".format(raft.getCurrentTotalValue()))
 
-        lforescastDate = QLabel("Fecha pronóstico: " + raft.getStartDate().strftime("%d de %B de %Y"))
+        lforescastDate = QLabel("Fecha pronóstico: " + raft.getCurrentDate().strftime("%d de %B de %Y"))
         lforescastFishNumber = QLabel("Pronóstico número de peces: {0:.0f}".format(raft.getCurrentNumberFishes()))
         lforescastBiomass = QLabel("Pronóstico Biomasa: {0:.2f} kg".format(raft.getCurrentBiomass()))
         lforescastPrice = QLabel("Pronóstico Precio: {0:.2f} EUR/kg".format(raft.getCurrentPrice()))
@@ -898,9 +908,15 @@ class dashBoardController:
 
         # Conectar el evento de cambio de valor del slider
         self._update_current_date(raft.getPerCentage(),raft,lcurrentDate)
-        self.dateSliderCurrent.valueChanged.connect(lambda value: self._update_current_date(value, raft, lcurrentDate))
-        self._update_forescast_date(raft.getPerCentage(),raft,lforescastDate)
-        self.dateSliderForecast.valueChanged.connect(lambda value: self._update_forescast_date(value, raft, lforescastDate))
+        self.dateSliderCurrent.valueChanged.connect(lambda value_current: self._update_current_date(value_current, raft, lcurrentDate))
+        self._update_forescast_date(0,raft,lforescastDate,lforescastFishNumber,lforescastBiomass,lforescastPrice,lforescastTotalValue)
+        self.dateSliderForecast.valueChanged.connect(lambda value_forecast: self._update_forescast_date(value_forecast, raft, 
+                                                                                                        lforescastDate,
+                                                                                                        lforescastFishNumber,
+                                                                                                        lforescastBiomass,
+                                                                                                        lforescastPrice,
+                                                                                                        lforescastTotalValue
+                                                                                                        ))
 
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
 
@@ -1025,8 +1041,13 @@ class dashBoardController:
                 # Añadir línea vertical para la fecha actual (usa un color diferente)
                 self.date_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
                 plot_widget.addItem(self.date_vline)
+                self.date_vline_forescast = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine))
+                plot_widget.addItem(self.date_vline_forescast)
         
                 # Si es la primera vez, inicializar la línea en la posición del slider (25%)
+                if hasattr(self, 'date_vline_forescast'):
+                    initial_pos = x[0] + (x[-1] - x[0]) * raft.getPerCentage()/100
+                    self.date_vline_forescast.setPos(initial_pos)
                 if hasattr(self, 'date_vline'):
                     initial_pos = x[0] + (x[-1] - x[0]) * raft.getPerCentage()/100
                     self.date_vline.setPos(initial_pos)

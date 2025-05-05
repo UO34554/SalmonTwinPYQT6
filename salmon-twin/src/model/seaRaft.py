@@ -178,16 +178,16 @@ class seaRaft:
     def getTemperatureForecast(self)->pd.DataFrame:
         return pd.DataFrame(self._temperatureForecast)
     
-    def getPrice(self)->pd.DataFrame:
+    def getPriceData(self)->pd.DataFrame:
         return pd.DataFrame(self._price)
     
-    def getPriceForecast(self)->pd.DataFrame:
+    def getPriceForecastData(self)->pd.DataFrame:
         return pd.DataFrame(self._priceForecast)
     
-    def getGrowth(self)->pd.DataFrame:
+    def getGrowthData(self)->pd.DataFrame:
         return pd.DataFrame(self._growth)
     
-    def getGrowthForecast(self)->pd.DataFrame:
+    def getGrowthForecastData(self)->pd.DataFrame:
         return pd.DataFrame(self._growthForecast)
     
     def getNumberFishes(self)->int:
@@ -196,55 +196,14 @@ class seaRaft:
         else:
             return self._numberFishes
         
-    def getCurrentBiomass(self)->float:
-        if self._growth is None or self._growth.empty:
-            return 0.0
-        
-        # Asegurar que trabajamos con fechas en formato datetime
-        target_date = pd.to_datetime(self.getCurrentDate())
-        sorted_growth = self.getGrowth()
-        sorted_growth['ds'] = pd.to_datetime(self.getGrowth()['ds'])
-        
-        # Encontrar la fecha anterior y posterior más cercanas
-        prev_date_idx = sorted_growth[sorted_growth['ds'] <= target_date]['ds'].idxmax() if not sorted_growth[sorted_growth['ds'] <= target_date].empty else None
-        next_date_idx = sorted_growth[sorted_growth['ds'] > target_date]['ds'].idxmin() if not sorted_growth[sorted_growth['ds'] > target_date].empty else None
-        
-        # Caso 1: Fecha exacta encontrada
-        if prev_date_idx is not None and sorted_growth.loc[prev_date_idx, 'ds'] == target_date:
-            return sorted_growth.loc[prev_date_idx, 'biomass']
-    
-        # Caso 2: Fecha está antes de la primera medición
-        if prev_date_idx is None and next_date_idx is not None:
-            return sorted_growth.loc[next_date_idx, 'biomass']
-    
-        # Caso 3: Fecha está después de la última medición
-        if prev_date_idx is not None and next_date_idx is None:
-            return sorted_growth.loc[prev_date_idx, 'biomass']
-    
-        # Caso 4: Fecha está entre dos mediciones - realizar interpolación lineal
-        if prev_date_idx is not None and next_date_idx is not None:
-            prev_date = sorted_growth.loc[prev_date_idx, 'ds']
-            next_date = sorted_growth.loc[next_date_idx, 'ds']
-            prev_biomass = sorted_growth.loc[prev_date_idx, 'biomass']
-            next_biomass = sorted_growth.loc[next_date_idx, 'biomass']
-        
-            # Calcular la proporción del tiempo transcurrido
-            total_days = (next_date - prev_date).total_seconds() / (60*60*24)
-            days_passed = (target_date - prev_date).total_seconds() / (60*60*24)
-            proportion = days_passed / total_days if total_days > 0 else 0
-        
-            # Interpolar linealmente
-            interpolated_biomass = prev_biomass + proportion * (next_biomass - prev_biomass)
-            return interpolated_biomass
-        
     def getCurrentNumberFishes(self)->float:
         if self._growth is None or self._growth.empty:
             return 0.0
         
         # Asegurar que trabajamos con fechas en formato datetime
         target_date = pd.to_datetime(self.getCurrentDate())
-        sorted_growth = self.getGrowth()
-        sorted_growth['ds'] = pd.to_datetime(self.getGrowth()['ds'])
+        sorted_growth = self.getGrowthData()
+        sorted_growth['ds'] = pd.to_datetime(self.getGrowthData()['ds'])
         
         # Encontrar la fecha anterior y posterior más cercanas
         prev_date_idx = sorted_growth[sorted_growth['ds'] <= target_date]['ds'].idxmax() if not sorted_growth[sorted_growth['ds'] <= target_date].empty else None
@@ -278,14 +237,137 @@ class seaRaft:
             interpolated_number_fishes = prev_number_fishes + proportion * (next_number_fishes - prev_number_fishes)
             return interpolated_number_fishes
         
+    def getNumberFishesForecast(self,forescastDate)->int:
+        if self._growthForecast is None or self._growthForecast.empty:
+            return 0
+        
+        # Asegurar que trabajamos con fechas en formato datetime
+        target_date = pd.to_datetime(forescastDate)
+        sorted_growth = self.getGrowthForecastData()
+        sorted_growth['ds'] = pd.to_datetime(self.getGrowthForecastData()['ds'])
+        
+        # Encontrar la fecha anterior y posterior más cercanas
+        prev_date_idx = sorted_growth[sorted_growth['ds'] <= target_date]['ds'].idxmax() if not sorted_growth[sorted_growth['ds'] <= target_date].empty else None
+        next_date_idx = sorted_growth[sorted_growth['ds'] > target_date]['ds'].idxmin() if not sorted_growth[sorted_growth['ds'] > target_date].empty else None
+        
+        # Caso 1: Fecha exacta encontrada
+        if prev_date_idx is not None and sorted_growth.loc[prev_date_idx, 'ds'] == target_date:
+            return sorted_growth.loc[prev_date_idx, 'number_fishes']
+    
+        # Caso 2: Fecha está antes de la primera medición
+        if prev_date_idx is None and next_date_idx is not None:
+            return sorted_growth.loc[next_date_idx, 'number_fishes']
+    
+        # Caso 3: Fecha está después de la última medición
+        if prev_date_idx is not None and next_date_idx is None:
+            return sorted_growth.loc[prev_date_idx, 'number_fishes']
+    
+        # Caso 4: Fecha está entre dos mediciones - realizar interpolación lineal
+        if prev_date_idx is not None and next_date_idx is not None:
+            prev_date = sorted_growth.loc[prev_date_idx, 'ds']
+            next_date = sorted_growth.loc[next_date_idx, 'ds']
+            prev_number_fishes = sorted_growth.loc[prev_date_idx, 'number_fishes']
+            next_number_fishes = sorted_growth.loc[next_date_idx, 'number_fishes']
+        
+            # Calcular la proporción del tiempo transcurrido
+            total_days = (next_date - prev_date).total_seconds() / (60*60*24)
+            days_passed = (target_date - prev_date).total_seconds() / (60*60*24)
+            proportion = days_passed / total_days if total_days > 0 else 0
+
+            # Interpolar linealmente
+            interpolated_number_fishes = prev_number_fishes + proportion * (next_number_fishes - prev_number_fishes)
+            return interpolated_number_fishes
+        
+    def getCurrentBiomass(self)->float:
+        if self._growth is None or self._growth.empty:
+            return 0.0
+        
+        # Asegurar que trabajamos con fechas en formato datetime
+        target_date = pd.to_datetime(self.getCurrentDate())
+        sorted_growth = self.getGrowthData()
+        sorted_growth['ds'] = pd.to_datetime(self.getGrowthData()['ds'])
+        
+        # Encontrar la fecha anterior y posterior más cercanas
+        prev_date_idx = sorted_growth[sorted_growth['ds'] <= target_date]['ds'].idxmax() if not sorted_growth[sorted_growth['ds'] <= target_date].empty else None
+        next_date_idx = sorted_growth[sorted_growth['ds'] > target_date]['ds'].idxmin() if not sorted_growth[sorted_growth['ds'] > target_date].empty else None
+        
+        # Caso 1: Fecha exacta encontrada
+        if prev_date_idx is not None and sorted_growth.loc[prev_date_idx, 'ds'] == target_date:
+            return sorted_growth.loc[prev_date_idx, 'biomass']
+    
+        # Caso 2: Fecha está antes de la primera medición
+        if prev_date_idx is None and next_date_idx is not None:
+            return sorted_growth.loc[next_date_idx, 'biomass']
+    
+        # Caso 3: Fecha está después de la última medición
+        if prev_date_idx is not None and next_date_idx is None:
+            return sorted_growth.loc[prev_date_idx, 'biomass']
+    
+        # Caso 4: Fecha está entre dos mediciones - realizar interpolación lineal
+        if prev_date_idx is not None and next_date_idx is not None:
+            prev_date = sorted_growth.loc[prev_date_idx, 'ds']
+            next_date = sorted_growth.loc[next_date_idx, 'ds']
+            prev_biomass = sorted_growth.loc[prev_date_idx, 'biomass']
+            next_biomass = sorted_growth.loc[next_date_idx, 'biomass']
+        
+            # Calcular la proporción del tiempo transcurrido
+            total_days = (next_date - prev_date).total_seconds() / (60*60*24)
+            days_passed = (target_date - prev_date).total_seconds() / (60*60*24)
+            proportion = days_passed / total_days if total_days > 0 else 0
+        
+            # Interpolar linealmente
+            interpolated_biomass = prev_biomass + proportion * (next_biomass - prev_biomass)
+            return interpolated_biomass
+        
+    def getBiomassForecast(self, forescastDate)->float:
+        if self._growthForecast is None or self._growthForecast.empty:
+            return 0.0
+        
+        # Asegurar que trabajamos con fechas en formato datetime
+        target_date = pd.to_datetime(forescastDate)
+        sorted_growth = self.getGrowthForecastData()
+        sorted_growth['ds'] = pd.to_datetime(self.getGrowthForecastData()['ds'])
+        
+        # Encontrar la fecha anterior y posterior más cercanas
+        prev_date_idx = sorted_growth[sorted_growth['ds'] <= target_date]['ds'].idxmax() if not sorted_growth[sorted_growth['ds'] <= target_date].empty else None
+        next_date_idx = sorted_growth[sorted_growth['ds'] > target_date]['ds'].idxmin() if not sorted_growth[sorted_growth['ds'] > target_date].empty else None
+        
+        # Caso 1: Fecha exacta encontrada
+        if prev_date_idx is not None and sorted_growth.loc[prev_date_idx, 'ds'] == target_date:
+            return sorted_growth.loc[prev_date_idx, 'biomass']
+    
+        # Caso 2: Fecha está antes de la primera medición
+        if prev_date_idx is None and next_date_idx is not None:
+            return sorted_growth.loc[next_date_idx, 'biomass']
+    
+        # Caso 3: Fecha está después de la última medición
+        if prev_date_idx is not None and next_date_idx is None:
+            return sorted_growth.loc[prev_date_idx, 'biomass']
+    
+        # Caso 4: Fecha está entre dos mediciones - realizar interpolación lineal
+        if prev_date_idx is not None and next_date_idx is not None:
+            prev_date = sorted_growth.loc[prev_date_idx, 'ds']
+            next_date = sorted_growth.loc[next_date_idx, 'ds']
+            prev_biomass = sorted_growth.loc[prev_date_idx, 'biomass']
+            next_biomass = sorted_growth.loc[next_date_idx, 'biomass']
+        
+            # Calcular la proporción del tiempo transcurrido
+            total_days = (next_date - prev_date).total_seconds() / (60*60*24)
+            days_passed = (target_date - prev_date).total_seconds() / (60*60*24)
+            proportion = days_passed / total_days if total_days > 0 else 0
+        
+            # Interpolar linealmente
+            interpolated_biomass = prev_biomass + proportion * (next_biomass - prev_biomass)
+            return interpolated_biomass
+                 
     def getCurrentPrice(self)->float:
         if self._price is None or self._price.empty:
             return 0.0
         
         # Asegurar que trabajamos con fechas en formato datetime
         target_date = pd.to_datetime(self.getCurrentDate())
-        sorted_price = self.getPrice()
-        sorted_price['timestamp'] = pd.to_datetime(self.getPrice()['timestamp'])
+        sorted_price = self.getPriceData()
+        sorted_price['timestamp'] = pd.to_datetime(self.getPriceData()['timestamp'])
         
         # Encontrar la fecha anterior y posterior más cercanas
         prev_date_idx = sorted_price[sorted_price['timestamp'] <= target_date]['timestamp'].idxmax() if not sorted_price[sorted_price['timestamp'] <= target_date].empty else None
@@ -319,8 +401,52 @@ class seaRaft:
             interpolated_price = prev_price + proportion * (next_price - prev_price)
             return interpolated_price
         
+    def getPriceForecast(self, forescastDate)->float:
+        if self._priceForecast is None or self._priceForecast.empty:
+            return 0.0
+        
+        # Asegurar que trabajamos con fechas en formato datetime
+        target_date = pd.to_datetime(forescastDate)
+        sorted_price = self.getPriceForecastData()
+        sorted_price['ds'] = pd.to_datetime(self.getPriceForecastData()['ds'])
+        
+        # Encontrar la fecha anterior y posterior más cercanas
+        prev_date_idx = sorted_price[sorted_price['ds'] <= target_date]['ds'].idxmax() if not sorted_price[sorted_price['ds'] <= target_date].empty else None
+        next_date_idx = sorted_price[sorted_price['ds'] > target_date]['ds'].idxmin() if not sorted_price[sorted_price['ds'] > target_date].empty else None
+        
+        # Caso 1: Fecha exacta encontrada
+        if prev_date_idx is not None and sorted_price.loc[prev_date_idx, 'ds'] == target_date:
+            return sorted_price.loc[prev_date_idx, 'y']
+    
+        # Caso 2: Fecha está antes de la primera medición
+        if prev_date_idx is None and next_date_idx is not None:
+            return sorted_price.loc[next_date_idx, 'y']
+    
+        # Caso 3: Fecha está después de la última medición
+        if prev_date_idx is not None and next_date_idx is None:
+            return sorted_price.loc[prev_date_idx, 'y']
+    
+        # Caso 4: Fecha está entre dos mediciones - realizar interpolación lineal
+        if prev_date_idx is not None and next_date_idx is not None:
+            prev_date = sorted_price.loc[prev_date_idx, 'ds']
+            next_date = sorted_price.loc[next_date_idx, 'ds']
+            prev_price = sorted_price.loc[prev_date_idx, 'y']
+            next_price = sorted_price.loc[next_date_idx, 'y']
+        
+            # Calcular la proporción del tiempo transcurrido
+            total_days = (next_date - prev_date).total_seconds() / (60*60*24)
+            days_passed = (target_date - prev_date).total_seconds() / (60*60*24)
+            proportion = days_passed / total_days if total_days > 0 else 0
+        
+            # Interpolar linealmente
+            interpolated_price = prev_price + proportion * (next_price - prev_price)
+            return interpolated_price
+        
     def getCurrentTotalValue(self)->float:
         return self.getCurrentBiomass() * self.getCurrentPrice()
+    
+    def getTotalValueForecast(self, forescastDate)->float:
+        return self.getBiomassForecast(forescastDate) * self.getPriceForecast(forescastDate)
     
     # Convierte los datos de la balsa a un diccionario para serialización
     def to_dict(self):
