@@ -200,13 +200,14 @@ class dashBoardController:
             
             raft.setPerCentage(sliderValue)
             perCent = raft.getPerCentage()/100
-            days = int(365*perCent)           
+            # Dias de predicción
+            forescastDays = int(365*perCent*4)           
 
             # Filtrar los datos de temperatura de entrenamiento con la fecha inicial y hasta la fecha actual
             delta_days = (raft.getEndDate() - raft.getStartDate()).days
             forescast_start_date = raft.getStartDate() + timedelta(delta_days * perCent)
             dataTemp = dataTemp[dataTemp['ds'].apply(lambda x: pd.Timestamp(x) <= pd.Timestamp(forescast_start_date))]            
-            data_forecast = self.tempModel.fitTempData(dataTemp,days)
+            data_forecast = self.tempModel.fitTempData(dataTemp,forescastDays)
             if data_forecast is not None:
                 raft.setTemperatureForecast(data_forecast)
                 # Actualizar la balsa en la lista de balsas
@@ -231,7 +232,11 @@ class dashBoardController:
             sliderValue = 25
         else:
             sliderValue = self.dateSliderCurrent.value()
-        if self.priceModel.fit_price(sliderValue,start_date, end_date, 365):
+
+        # Dias de predicción
+        perCent = raft.getPerCentage()/100
+        forescastDays = int(365*perCent*4)
+        if self.priceModel.fit_price(perCent,start_date, end_date, forescastDays):
             # Guardar los datos de precios en la balsa
             raft.setPerCentage(sliderValue)           
             raft.setPriceForecast(self.priceModel.getPriceDataForecast())

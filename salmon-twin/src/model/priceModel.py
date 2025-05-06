@@ -100,7 +100,7 @@ class DataPrice:
     # horizon_days (int): Número de días para la predicción
     # Retorna:
     # bool: True si se ajustó correctamente, False en caso contrario   
-    def fit_price(self, slider_value, start_date=None, end_date=None, horizon_days=365):
+    def fit_price(self, percent, start_date=None, end_date=None, horizon_days=365):
         self.lastError = None
         if self._price_data is None:
              self.lastError = cfg.PRICEMODEL_FIT_NO_DATA
@@ -140,8 +140,6 @@ class DataPrice:
             })
             
             # Define el porcentaje para el conjunto de entrenamiento
-            percent=slider_value/100
-
             delta_days = (end_date - start_date).days
             if delta_days > 0:  # Protect against division by zero
                 current_day_offset = int(delta_days * percent)
@@ -175,7 +173,7 @@ class DataPrice:
             # Se utiliza el DataFrame filtrado como datos de entrenamiento            
             sf.fit(train)
 
-            horizon_weeks = int(horizon_days*percent/7)
+            horizon_weeks = int(horizon_days/7)
             self._price_data_forescast = sf.predict(h=horizon_weeks)  # Cambia el horizonte según tus necesidades
 
             # Importante: añadir las fechas de predicción
