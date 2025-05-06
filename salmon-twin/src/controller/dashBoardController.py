@@ -729,13 +729,16 @@ class dashBoardController:
         lforescastTotalValue.setText("Pronóstico Valor total: {0:.2f} EUR".format(raft.getTotalValueForecast(current_date)))
 
         # Actualizar líneas verticales en todas las gráficas
-        timestamp = pd.Timestamp(current_date).timestamp()
-        if hasattr(self, 'date_vline_forescast'):
-            self.date_vline_forescast.setPos(timestamp)
-        if hasattr(self, 'growth_vline_forescast'):
-            self.growth_vline_forescast.setPos(timestamp)
-        if hasattr(self, 'price_vline_forescast'):
-            self.price_vline_forescast.setPos(timestamp)
+        try:
+            timestamp = pd.Timestamp(current_date).timestamp()
+            if hasattr(self, 'date_vline_forescast'):
+                self.date_vline_forescast.setPos(timestamp)
+            if hasattr(self, 'growth_vline_forescast'):
+                self.growth_vline_forescast.setPos(timestamp)
+            if hasattr(self, 'price_vline_forescast'):
+                self.price_vline_forescast.setPos(timestamp)
+        except Exception as e:
+            print(cfg.DASHBOARD_DATE_VLINE_FOR_ERROR.format(error=str(e)))
 
     # Función para actualizar la etiqueta de la fecha cuando cambia el valor del slider
     # Actualiza las lineas verticales en todas las gráficas
@@ -752,13 +755,16 @@ class dashBoardController:
         lcurrentDate.setText("Fecha actual: " + formatted_date)
 
         # Actualizar líneas verticales en todas las gráficas
-        timestamp = pd.Timestamp(current_date).timestamp()
-        if hasattr(self, 'date_vline'):
-            self.date_vline.setPos(timestamp)
-        if hasattr(self, 'growth_vline'):
-            self.growth_vline.setPos(timestamp)
-        if hasattr(self, 'price_vline'):
-            self.price_vline.setPos(timestamp)
+        try:
+            timestamp = pd.Timestamp(current_date).timestamp()
+            if hasattr(self, 'date_vline'):
+                self.date_vline.setPos(timestamp)
+            if hasattr(self, 'growth_vline'):
+                self.growth_vline.setPos(timestamp)
+            if hasattr(self, 'price_vline'):
+                self.price_vline.setPos(timestamp)
+        except Exception as e:
+            print(cfg.DASHBOARD_DATE_VLINE_HIS_ERROR.format(error=str(e)))
 
     # Datos de la balsa
     def _draw_infopanel(self,pos_i,pos_j,raft):

@@ -84,10 +84,9 @@ class seaRaft:
     def getStartDate(self)->datetime:
         return self._startDate.date()
     
-    def getPerCentage(self)->int:
-        # Si el porcentaje es None, devolver 25
+    def getPerCentage(self)->int:        
         if self._perCentage is None:
-            return 25
+            return 0
         return int(self._perCentage)
     
     def getEndDate(self)->datetime:
@@ -97,7 +96,9 @@ class seaRaft:
         return pd.DataFrame(self._temperature)
     
     # Devuelve la fecha actual calculada a partir de la fecha de inicio y el porcentaje
-    def getCurrentDate(self)->datetime:        
+    def getCurrentDate(self)->datetime:
+        if self._perCentage is None:
+            return self._startDate        
         return pd.to_datetime(self._startDate + (self._endDate - self._startDate) * (self._perCentage / 100.0))
     
     # Devuelve la fecha máxima de predicción si la hay

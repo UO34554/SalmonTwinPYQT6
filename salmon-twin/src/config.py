@@ -51,6 +51,8 @@ DASHBOARD_PRICE_DATA_SAVE_OK = "Datos de precios guardados correctamente."
 DASHBOARD_PRICE_DATA_SAVE_ERROR = "Error al guardar los datos de precios: {error}"
 DASHBOARD_PREDICT_PRICE_SUCCESS = "Predicción de precios exitosa."
 DASHBOARD_PREDICT_PRICE_ERROR = "Error al predecir los precios. {error}"
+DASHBOARD_DATE_VLINE_HIS_ERROR = "Error al actualizar las líneas verticales de los históricos. {error}"
+DASHBOARD_DATE_VLINE_FOR_ERROR = "Error al actualizar las líneas verticales de las predicciones. {error}"
 #--- Datos de configuración de utilidades
 UTILITY_DATA_LOAD_FILE_NOT_FOUND_MESSAGE = "Error al cargar los datos: archivo no encontrado."
 UTILITY_DATA_LOAD_EXCEPTION_MENSSAGE = "Error al cargar los datos: "
