@@ -89,8 +89,7 @@ class dashBoardController:
             beta = 0.02004161                               # Coeficiente de pendiente
             mu = 17.0                                       # Punto de inflexión en meses
             mortality_rate = 0.05                           # Tasa mensual de mortandad (5%)
-            initial_weight = 100.0                          # Peso inicial del salmón en gramos (100g)
-            raft.setNumberFishes(100)                       # Número inicial de peces (100 peces)
+            initial_weight = 100.0                          # Peso inicial del salmón en gramos (100g)            
             initial_number_fishes = raft.getNumberFishes()  # Cantidad inicial de peces
             
             # Aplicar el modelo de crecimiento de Thyholdt devuelve el peso en KG
@@ -195,6 +194,10 @@ class dashBoardController:
                 sliderValue = 25
             else:
                 sliderValue = self.dateSliderCurrent.value()
+            if sliderValue==0:
+                auxTools.show_error_message(cfg.DASHBOARD_NO_FORESCAST_PERIOD_ERROR)
+                return
+            
             raft.setPerCentage(sliderValue)
             perCent = raft.getPerCentage()/100
             days = int(365*perCent)           
@@ -220,7 +223,7 @@ class dashBoardController:
         # Obtener las fechas inicial y final de la balsa
         start_date = raft.getStartDate()
         end_date = raft.getEndDate()        
-        if not self.priceModel.setPriceData(raft.getPrice()):
+        if not self.priceModel.setPriceData(raft.getPriceData()):
             auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
             return
         # Llamar al método fit_price con las fechas específicas

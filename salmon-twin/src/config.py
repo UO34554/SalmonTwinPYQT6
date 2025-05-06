@@ -36,6 +36,7 @@ DASHBOARD_LOAD_PRICE_FILE_SUCCESS = "Datos de precios de salmón cargados correc
 DASHBOARD_LOAD_PRICE_FILE_ERROR = "Error al cargar los datos de precios de salmón."
 DASHBOARD_NO_TEMP_DATA_ERROR = "No hay datos de temperatura para la balsa seleccionada."
 DASHBOARD_NO_TEMP_FORECAST_DATA_ERROR = "No hay datos de predicción de temperatura para la balsa seleccionada."
+DASHBOARD_NO_FORESCAST_PERIOD_ERROR = "No se ha seleccionado un periodo de predicción."
 DASHBOARD_PREDICT_TEMP_SUCCESS = "Predicción de temperatura exitosa."
 DASHBOARD_PREDICT_TEMP_ERROR = "Error al predecir la temperatura."
 DASHBOARD_PREDICT_GROWTH_SUCCESS = "Predicción de crecimiento exitosa."
@@ -78,6 +79,7 @@ RAFTS_ERROR_PARSER_PRICE_FORECAST = "Error al convertir los datos de predicción
 RAFTS_ERROR_FROM_DICT_TO_RAFT = "Error al crear balsa desde diccionario: {e}"
 RAFTS_ERROR_PARSER_GROWTH = "Error al convertir los datos de crecimiento: {e}"
 RAFTS_ERROR_PARSER_GROWTH_FORECAST = "Error al convertir los datos de predicción de crecimiento: {e}"
+RAFTS_ERROR_PARSER_FISHES_NUMBER = "Error al convertir el número de peces: {e}"
 #--- Cadenas para el modelo de precios en priceModel.py
 PRICEMODEL_ERROR_PARSER_DATE = "No fue posible convertir a una fecha válida"
 PRICEMODEL_ERROR_PARSER_PRICE = "No fue posible convertir el precio a un número real válido"

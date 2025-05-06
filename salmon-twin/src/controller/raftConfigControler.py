@@ -94,12 +94,14 @@ class raftConfigController:
             self._view.regions.setCurrentText(raft.getSeaRegion())
             self._view.initialDate.setDate(raft.getStartDate())
             self._view.finalDate.setDate(raft.getEndDate())
+            self._view.fishesNumber.setText(str(raft.getNumberFishes()))
         else:
             self._view.id.setText('')
             self._view.name.setText('')
             self._view.regions.setCurrentIndex(0)
             self._view.initialDate.setDate(datetime.today())
             self._view.finalDate.setDate(datetime.today())
+            self._view.fishesNumber.setText('0')
 
     # Muestra las balsas en la vista
     def _show_rafts(self):
@@ -133,6 +135,12 @@ class raftConfigController:
         initialDate = self._view.initialDate.date().toPython()
         # Convierte QDate a datetime
         finalDate = self._view.finalDate.date().toPython()
+        # Convierte el número de peces a entero
+        try:
+            numberFishes = int(self._view.fishesNumber.text())
+        except Exception as e:
+            auxTools.show_error_message(cfg.RAFTS_ERROR_PARSER_FISHES_NUMBER.format(e=str(e)))
+            return
         # Crear un objeto balsa
         raft = self.get_raft_by_id(id)
         # Si la balsa no exite se pregunta si se quiere crear una nueva
@@ -162,7 +170,8 @@ class raftConfigController:
                 raft.setName(name)
                 raft.setSeaRegion(region)
                 raft.setStartDate(initialDate)
-                raft.setEndDate(finalDate)                
+                raft.setEndDate(finalDate)
+                raft.setNumberFishes(numberFishes)                
                 # Añadir la balsa a la lista
                 self.rafts.append(raft)
         else:        
@@ -177,6 +186,7 @@ class raftConfigController:
             raft.setSeaRegion(region)
             raft.setStartDate(initialDate)
             raft.setEndDate(finalDate)
+            raft.setNumberFishes(numberFishes)
         # Guardar la lista de balsas
         if not self._save_raft_list_data():
             auxTools.show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
@@ -320,7 +330,7 @@ class raftConfigController:
         else:
             raftInList = self.get_raft_by_id(raft.getId())
             if raftInList is not None:
-                raftInList.setPrice(raft.getPrice())
+                raftInList.setPrice(raft.getPriceData())
                 if not self._save_raft_list_data():
                     auxTools.show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
                 else:
@@ -334,7 +344,7 @@ class raftConfigController:
         else:
             raftInList = self.get_raft_by_id(raft.getId())
             if raftInList is not None:
-                raftInList.setPriceForecast(raft.getPriceForecast())
+                raftInList.setPriceForecast(raft.getPriceForecastData())
                 raftInList.setPerCentage(raft.getPerCentage())
                 if not self._save_raft_list_data():
                     auxTools.show_error_message(cfg.RAFTS_SAVE_ERROR_MESSAGE.format(error=self.lastError))
@@ -349,8 +359,8 @@ class raftConfigController:
         else:
             raftInList = self.get_raft_by_id(raft.getId())
             if raftInList is not None:
-                raftInList.setGrowth(raft.getGrowth())
-                raftInList.setGrowthForecast(raft.getGrowthForecast())
+                raftInList.setGrowth(raft.getGrowthData())
+                raftInList.setGrowthForecast(raft.getGrowthForecastData())
                 raftInList.setPerCentage(raft.getPerCentage())
                 raftInList.setNumberFishes(raft.getNumberFishes())
                 if not self._save_raft_list_data():
