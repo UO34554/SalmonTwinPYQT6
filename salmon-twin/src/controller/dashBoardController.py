@@ -235,8 +235,7 @@ class dashBoardController:
 
         # Dias de predicción
         perCent = raft.getPerCentage()/100
-        forescastDays = int(365*perCent*4)
-        if self.priceModel.fit_price(perCent,start_date, end_date, forescastDays):
+        if self.priceModel.fit_price(perCent,start_date, end_date):
             # Guardar los datos de precios en la balsa
             raft.setPerCentage(sliderValue)           
             raft.setPriceForecast(self.priceModel.getPriceDataForecast())
@@ -379,7 +378,7 @@ class dashBoardController:
 
                 # Graficar los datos de precio pronosticados
                 plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), 
-                                 name="Precio Pronosticado EUR/kg Promedio")                
+                                 name="Precio Pronosticado EUR/kg Promedio")                              
                 
                 # Configurar el rango de visualización para mostrar desde la fecha inicial a la fecha final
                 min_x = min(x.min(), x_forecast.min())
