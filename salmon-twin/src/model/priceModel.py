@@ -102,316 +102,8 @@ class DataPrice:
         # Se procesan los datos de precios
         if not self.parsePrice(self._price_data):
             return False
-        return True
+        return True    
     
-    # """
-    # Encuentra la mejor combinación de estadísticas para minimizar el MAE
-    #
-    #Args:
-    #    train: DataFrame con datos de entrenamiento
-    #    test: DataFrame con datos de prueba
-    #    type_stats: Lista de estadísticas disponibles
-    #    max_window: Tamaño máximo de ventana
-    #    n_stats: Número de estadísticas a seleccionar
-    #    
-    #Returns:
-    #    tuple: (mejor_combinación, mejor_mae)    
-    def find_optimal_statistics(self,train, test, type_stats, max_window):    
-        # Generar todas las combinaciones posibles con repetición
-        n_stats = 4
-        all_combinations = list(combinations_with_replacement(type_stats, n_stats))
-        print(f"Probando {len(all_combinations)} combinaciones de estadísticas...")
-    
-        best_mae = float('inf')
-        best_combination = None
-    
-        # Configurar tamaños de ventana fijos
-        window_sizes = [max(2, int(max_window/4)), 
-                        max(4, int(max_window/2)), 
-                        max(8, int(3*max_window/4)), 
-                        max_window]
-    
-        # Crear serie temporal para entrenamiento
-        y_train = pd.Series(
-            data=train['y'].values,
-            index=pd.DatetimeIndex(train['ds']),
-            name='EUR_kg'
-        )
-    
-        # Configurar el regresor base
-        base_regressor = LGBMRegressor(
-            n_estimators=300, learning_rate=0.05, max_depth=5,
-            num_leaves=31, min_child_samples=5, subsample=0.8,
-            colsample_bytree=0.8, random_state=15926, verbose=-1
-        )
-    
-        wn.filterwarnings('ignore', category=Warning)
-        # Probar cada combinación
-        results = []
-        for stats in tqdm(all_combinations):
-            try:
-                # Configurar características de ventana con la combinación actual
-                window_features = RollingFeatures(
-                    stats=list(stats),
-                    window_sizes=window_sizes
-                )
-            
-                # Crear y entrenar el modelo
-                forecaster = ForecasterRecursive(
-                    regressor=base_regressor,
-                    lags=min(8, len(train)//4),
-                    window_features=window_features
-                )
-            
-                # Entrenar el modelo
-                forecaster.fit(y=y_train)
-            
-                # Predecir y evaluar
-                predictions = forecaster.predict(steps=len(test))
-                mae = mean_absolute_error(test['y'].values, predictions.values)
-            
-                # Guardar resultados
-                results.append({
-                    'stats': stats,
-                    'mae': mae
-                })
-            
-                # Actualizar la mejor combinación si corresponde
-                if mae < best_mae:
-                    best_mae = mae
-                    best_combination = stats
-                    print(f"\nNueva mejor combinación: {stats}, MAE: {mae:.4f}")
-                
-            except Exception as e:
-                print(f"Error con combinación {stats}: {e}")
-                continue
-    
-        # Ordenar resultados por MAE
-        results.sort(key=lambda x: x['mae'])
-    
-        # Mostrar las mejores combinaciones
-        print("\nMejores combinaciones:")
-        for i, result in enumerate(results[:8]):
-            print(f"{i+1}. {result['stats']} - MAE: {result['mae']:.4f}")
-    
-        return best_combination, best_mae
-    
-    
-    #Encuentra la combinación óptima de tamaños de ventana para los estadísticos dados
-    #
-    #Args:
-    #    train: DataFrame con datos de entrenamiento
-    #    test: DataFrame con datos de prueba
-    #    best_stats: Lista con los mejores estadísticos ya identificados
-    #    max_window: Tamaño máximo de ventana permitido
-    #    
-    #Returns:
-    #    tuple: (mejor_combinación_ventanas, mejor_mae)    
-    def find_optimal_window_sizes(self, train, test, best_stats, max_window):    
-        # Verificar que tengamos estadísticos válidos
-        if len(best_stats) != 4:
-            raise ValueError(f"Se requieren exactamente 4 estadísticos, se proporcionaron {len(best_stats)}")
-    
-        # Crear serie temporal para entrenamiento
-        y_train = pd.Series(
-            data=train['y'].values,
-            index=pd.DatetimeIndex(train['ds']),
-            name='EUR_kg'
-        )
-    
-        # Configurar el regresor base (igual que el anterior)
-        base_regressor = LGBMRegressor(
-            n_estimators=300, learning_rate=0.05, max_depth=5,
-            num_leaves=31, min_child_samples=5, subsample=0.8,
-            colsample_bytree=0.8, random_state=15926, verbose=-1
-        )
-        
-        # Definir posibles tamaños de ventana (respetando max_window)
-        possible_windows = [i for i in range(2, max_window + 1) if i % 2 == 0]  # Solo pares para reducir combinaciones
-    
-        # Generar combinaciones de 4 tamaños de ventana (con cada tamaño ascendente)
-        window_combinations = []
-        for _ in range(500):  # Número razonable de combinaciones a probar
-            # Seleccionar 4 tamaños de ventana aleatorios y ordenarlos
-            sample = sorted(random.sample(possible_windows, 4))
-            window_combinations.append(sample)
-    
-        print(f"Probando {len(window_combinations)} combinaciones de tamaños de ventana...")        
-    
-        # Variables para almacenar los mejores resultados
-        best_mae = float('inf')
-        best_window_sizes = None
-    
-        # Suprimir warnings
-        wn.filterwarnings('ignore', message='.*DatetimeIndex without a frequency.*')
-    
-        # Probar cada combinación
-        results = []
-        for window_sizes in tqdm(window_combinations):
-            try:
-                # Configurar características de ventana con los mejores estadísticos y la combinación de ventanas actual
-                window_features = RollingFeatures(
-                    stats=list(best_stats),
-                    window_sizes=window_sizes
-                )
-            
-                # Crear y entrenar el modelo
-                forecaster = ForecasterRecursive(
-                    regressor=base_regressor,
-                    lags=min(8, len(train)//4),
-                    window_features=window_features
-                )
-            
-                # Entrenar el modelo
-                forecaster.fit(y=y_train)
-            
-                # Predecir y evaluar
-                predictions = forecaster.predict(steps=len(test))
-                mae = mean_absolute_error(test['y'].values, predictions.values)
-            
-                # Guardar resultados
-                results.append({
-                    'window_sizes': window_sizes,
-                    'mae': mae
-                })
-            
-                # Actualizar la mejor combinación si corresponde
-                if mae < best_mae:
-                    best_mae = mae
-                    best_window_sizes = window_sizes
-                    print(f"\nNueva mejor combinación de ventanas: {window_sizes}, MAE: {mae:.4f}")
-            
-            except Exception as e:
-                print(f"Error con tamaños de ventana {window_sizes}: {e}")
-                continue
-    
-        # Ordenar resultados por MAE
-        results.sort(key=lambda x: x['mae'])
-    
-        # Mostrar las mejores combinaciones
-        print("\nMejores combinaciones de tamaños de ventana:")
-        for i, result in enumerate(results[:8]):
-            print(f"{i+1}. {result['window_sizes']} - MAE: {result['mae']:.4f}")
-    
-        return best_window_sizes, best_mae
-    
-
-    
-    # Encuentra los mejores hiperparámetros para el regresor LGBMRegressor
-    #
-    # Args:
-    #    train: DataFrame con datos de entrenamiento
-    #    test: DataFrame con datos de prueba
-    #    best_stats: Lista con las mejores estadísticas ya identificadas
-    #    best_windows: Lista con los mejores tamaños de ventana ya identificados
-    #    
-    # Returns:
-    #    tuple: (mejores_parámetros, mejor_mae)    
-    def find_optimal_regressor_params(self, train, test, best_stats, best_windows):    
-        # Preparar los datos de serie temporal
-        y_train = pd.Series(
-            data=train['y'].values,
-            index=pd.DatetimeIndex(train['ds']),
-            name='EUR_kg'
-        )
-    
-        # Configurar las características de ventana con los mejores estadísticos y tamaños
-        window_features = RollingFeatures(
-            stats=list(best_stats),
-            window_sizes=best_windows
-        )
-    
-        # Definir los rangos de hiperparámetros a probar
-        param_grid = {
-            'n_estimators':[50, 100, 150, 200, 300, 400],
-            'learning_rate':[0.01, 0.05, 0.1, 0.2, 0.3],
-            'max_depth':[3, 4, 5, 6, 7, 8, 9, 10],
-            'num_leaves':[10, 20, 31, 40, 50, 60],
-            'min_child_samples':[5, 8, 10, 15, 20, 25],
-            'subsample':[0.6, 0.7, 0.8, 0.9, 1.0],
-            'colsample_bytree':[0.6, 0.7, 0.8, 0.9, 1.0]
-        }
-    
-        # Generar combinaciones aleatorias de hiperparámetros
-        n_iterations = 100  # Número de combinaciones a probar
-        random_params = []
-    
-        for _ in range(n_iterations):
-            params = {
-                'n_estimators': random.choice(param_grid['n_estimators']),
-                'learning_rate': random.choice(param_grid['learning_rate']),
-                'max_depth': random.choice(param_grid['max_depth']),
-                'num_leaves': random.choice(param_grid['num_leaves']),
-                'min_child_samples': random.choice(param_grid['min_child_samples']),
-                'subsample': random.choice(param_grid['subsample']),
-                'colsample_bytree': random.choice(param_grid['colsample_bytree']),
-                'random_state': 15926,
-                'verbose': -1
-            }
-            random_params.append(params)
-    
-        print(f"Probando {n_iterations} combinaciones de hiperparámetros...")
-    
-        # Variables para almacenar los mejores resultados
-        best_mae = float('inf')
-        best_params = None
-    
-        # Suprimir advertencias
-        wn.filterwarnings('ignore', category=Warning)
-    
-        # Probar cada combinación
-        results = []
-        for params in tqdm(random_params):
-            try:
-                # Crear y configurar el regresor con los parámetros actuales
-                regressor = LGBMRegressor(**params)
-            
-                # Crear el modelo
-                forecaster = ForecasterRecursive(
-                    regressor=regressor,
-                    lags = 4,
-                    window_features=window_features
-                )
-            
-                # Entrenar el modelo
-                forecaster.fit(y=y_train)
-            
-                # Predecir y evaluar
-                predictions = forecaster.predict(steps=len(test))
-                mae = mean_absolute_error(test['y'].values, predictions.values)
-            
-                # Guardar resultados
-                results.append({
-                    'params': params,
-                    'mae': mae
-                })
-            
-                # Actualizar los mejores parámetros si corresponde
-                if mae < best_mae:
-                    best_mae = mae
-                    best_params = params
-                    print(f"\nNuevos mejores parámetros: n_estimators={params['n_estimators']}, "
-                      f"learning_rate={params['learning_rate']}, max_depth={params['max_depth']}, "
-                      f"MAE: {mae:.4f}")
-            
-            except Exception as e:
-                print(f"Error con parámetros {params}: {e}")
-                continue
-    
-        # Ordenar resultados por MAE
-        results.sort(key=lambda x: x['mae'])
-    
-        # Mostrar las mejores combinaciones
-        print("\nMejores configuraciones de hiperparámetros:")
-        for i, result in enumerate(results[:5]):
-            params = result['params']
-            print(f"{i+1}. n_est={params['n_estimators']}, lr={params['learning_rate']}, "
-              f"depth={params['max_depth']}, leaves={params['num_leaves']}, "
-              f"min_samples={params['min_child_samples']} - MAE: {result['mae']:.4f}")
-    
-        return best_params, best_mae
-    
-
     """
     Optimiza simultáneamente las estadísticas, tamaños de ventana y parámetros del regresor
     
@@ -424,7 +116,8 @@ class DataPrice:
     Returns:
         tuple: (mejores_estadísticas, mejores_ventanas, mejores_parámetros, mejor_mae)
     """
-    def find_optimal_configuration(self, train, test, max_window, n_iterations=50):    
+    def find_optimal_configuration(self, train, test, max_window, n_iterations=50,
+                                   fixed_stats=None, fixed_windows=None,fixed_params=None,lags=None):    
         # Crear serie temporal para entrenamiento
         y_train = pd.Series(
             data=train['y'].values,
@@ -433,18 +126,29 @@ class DataPrice:
         )
     
         # Definir opciones para cada componente
-        stats_options = ['mean', 'std', 'min', 'max', 'sum', 'median', 'ratio_min_max', 'coef_variation']
+        if fixed_stats is None:
+            stats_options = ['mean', 'std', 'min', 'max', 'sum', 'median', 'ratio_min_max', 'coef_variation']
+        else:
+            stats_options = fixed_stats
+
+        if fixed_windows is None:
+            possible_windows = [i for i in range(1, max_window-1)]
+        else:
+            possible_windows = fixed_windows
     
         # Parámetros del regresor
-        param_grid = {
-            'n_estimators': [50, 100, 150, 200, 300],
-            'learning_rate': [0.05, 0.1, 0.2],
-            'max_depth': [3, 4, 5],
-            'num_leaves': [10, 20, 31, 40],
-            'min_child_samples': [5, 8, 10, 15],
-            'subsample': [0.7, 0.8, 0.9],
-            'colsample_bytree': [0.7, 0.8, 0.9]
-        }
+        if fixed_params is None:
+            param_grid = {
+                'n_estimators': [50, 100, 150, 200, 300],
+                'learning_rate': [0.05, 0.1, 0.2],
+                'max_depth': [3, 4, 5],
+                'num_leaves': [10, 20, 31, 40],
+                'min_child_samples': [5, 8, 10, 15],
+                'subsample': [0.7, 0.8, 0.9],
+                'colsample_bytree': [0.7, 0.8, 0.9]
+            }
+        else:
+            param_grid = fixed_params
     
         # Suprimir advertencias
         wn.filterwarnings('ignore', category=Warning)
@@ -470,25 +174,40 @@ class DataPrice:
                 # 1. Seleccionar estadísticas aleatorias (4 elementos)
                 stats = random.choices(stats_options, k=4)
             
-                # 2. Generar tamaños de ventana aleatorios (ascendentes)
-                possible_windows = [i for i in range(2, max_window + 1) if i % 2 == 0]
+                # 2. Generar tamaños de ventana aleatorios (ascendentes)                
                 if len(possible_windows) >= 4:
                     windows = sorted(random.sample(possible_windows, 4))
                 else:
                     windows = sorted(random.choices(possible_windows, k=4))
+
+                max_possible_window = len(train)-1
+                max_windows = max(windows)
+                min_windows = min(windows)
+                if max_possible_window < max_windows:
+                    scale_factor = max_possible_window / max_windows
+                    best_windows = [
+                        max(min_windows, int(min_windows * scale_factor)),
+                        max(min_windows, int(windows[1] * scale_factor)),
+                        max(min_windows, int(windows[2] * scale_factor)),
+                        max_possible_window
+                    ]
+                    print(f"\nAjustando tamaños de ventana {windows} a: {best_windows} debido a tamaño limitado de datos")
             
                 # 3. Seleccionar parámetros aleatorios para el regresor
-                params = {
-                    'n_estimators': random.choice(param_grid['n_estimators']),
-                    'learning_rate': random.choice(param_grid['learning_rate']),
-                    'max_depth': random.choice(param_grid['max_depth']),
-                    'num_leaves': random.choice(param_grid['num_leaves']),
-                    'min_child_samples': random.choice(param_grid['min_child_samples']),
-                    'subsample': random.choice(param_grid['subsample']),
-                    'colsample_bytree': random.choice(param_grid['colsample_bytree']),
-                    'random_state': 15926,
-                    'verbose': -1
-                }
+                if fixed_params is None:
+                    params = {
+                        'n_estimators': random.choice(param_grid['n_estimators']),
+                        'learning_rate': random.choice(param_grid['learning_rate']),
+                        'max_depth': random.choice(param_grid['max_depth']),
+                        'num_leaves': random.choice(param_grid['num_leaves']),
+                        'min_child_samples': random.choice(param_grid['min_child_samples']),
+                        'subsample': random.choice(param_grid['subsample']),
+                        'colsample_bytree': random.choice(param_grid['colsample_bytree']),
+                        'random_state': 15926,
+                        'verbose': -1
+                    }
+                else:
+                    params = fixed_params
             
                 # 4. Configurar modelo con esta combinación
                 window_features = RollingFeatures(
@@ -499,8 +218,8 @@ class DataPrice:
                 regressor = LGBMRegressor(**params)
             
                 forecaster = ForecasterRecursive(
-                    regressor=regressor,
-                    lags=4,  # Valor fijo para evitar sobreajuste
+                    regressor=regressor,                    
+                    lags=lags,                    
                     window_features=window_features
                 )
             
@@ -543,11 +262,14 @@ class DataPrice:
                     best_stats = stats
                     best_windows = windows
                     best_params = params
-                    print(f"\nNueva mejor configuración (score: {best_score:.4f}) (iter {i+1}/{n_iterations}):")
+                    print(f"\nNueva mejor configuración (score: {best_score:.6f}) (iter {i+1}/{n_iterations}):")
                     print(f"MAE: {best_mae:.4f}, RMSE: {best_rmse:.4f}, MAPE: {best_mape:.2f}%, Dir: {best_dir_acc:.2f}%")                    
                     print(f"Stats: {best_stats}")
                     print(f"Windows: {best_windows}")
-                    print(f"Params: n_est={best_params['n_estimators']}, lr={best_params['learning_rate']}, depth={best_params['max_depth']}")
+                    if fixed_params is None:
+                        print(f"Params: n_est={best_params['n_estimators']}, lr={best_params['learning_rate']}, depth={best_params['max_depth']}")
+                    else:
+                        print(f"Params: {fixed_params}")
             
                 # 6. Guardar resultados
                 results.append({
@@ -571,15 +293,20 @@ class DataPrice:
         for i, result in enumerate(results[:5]):
             print(f"{i+1}. (score: {best_score:.4f}) Stats: {result['stats']}")
             print(f"   Windows: {result['windows']}")
-            params = result['params']
-            print(f"   Params: n_est={params['n_estimators']}, lr={params['learning_rate']}, depth={params['max_depth']}")
+
+            if fixed_params is None:
+                params = result['params']
+                print(f"   Params: n_est={params['n_estimators']}, lr={params['learning_rate']}, depth={params['max_depth']}")
+            else:
+                print(f"   Params: {fixed_params}")
+
             print(f"   MAE: {result['mae']:.4f}")
             print(f"   RMSE: {result['rmse']:.4f}")
             print(f"   MAPE: {result['mape']:.2f}%")
             print(f"   Dir: {result['dir_acc']:.2f}%")
             print("---")
     
-        return results[0]['stats'], results[0]['windows'], results[0]['params'], results[0]['score'], results[0]['mae'], results[0]['rmse'], results[0]['mape'], results[0]['dir_acc']
+        return results
     
     # Se ajusta el modelo de precios utilizando los datos de precios procesados
     # Parámetros:
@@ -630,33 +357,47 @@ class DataPrice:
             train = data[data['ds'].dt.date <= current_date]
             test = data[data['ds'].dt.date > current_date]
 
-            # Test buscar el mejor modelo
-            #type_stats=['mean', 'std', 'min', 'max', 'sum', 'median', 'ratio_min_max', 'coef_variation']
-            #best_combination, best_mae = self.find_optimal_statistics(train, test, type_stats, len(train)//3)
-            #best_combination = ('min', 'max', 'std', 'median')
-            #best_windows, best_mae_windows = self.find_optimal_window_sizes(train, test, best_combination, len(train)//3)
-            #best_windows = [2, 6, 8, 14]
-            #best_mae_windows = 0.4519
-            #Mejores configuraciones de hiperparámetros:
-            #1. n_est=300, lr=0.1, depth=3, leaves=10, min_samples=8 - MAE: 1.1725
-            #1. n_est=200, lr=0.3, depth=3, leaves=31, min_samples=25 - MAE: 1.2056
-            #print(f"Mejor combinación de estadísticas: {best_windows}, MAE: {best_mae_windows:.4f}")
-            #best_params, best_mae_params = self.find_optimal_regressor_params(train, test, best_combination, best_windows)
-            #print(f"Mejores parámetros: {best_params}, MAE: {best_mae_params:.4f}")
+            # Inicializar variables de control
+            results = None
+            fixed_windows = None
+            fixed_stats = None
+            fixed_lags = None
+            fixed_params = None
 
-            #Mejor combinación de estadísticas: ['max', 'max', 'std', 'sum'], MAE: 0.8196
-            #Mejores tamaños de ventana: [4, 42, 44, 58], MAE: 0.8196
-            #Mejores parámetros: {'n_estimators': 100, 'learning_rate': 0.2, 'max_depth': 3, 'num_leaves': 20, 'min_child_samples': 10, 'subsample': 0.7, 'colsample_bytree': 0.8, 'random_state': 15926, 'verbose': -1}, MAE: 0.8196
-            #Estadísticas de train - Min: 2.47, Max: 6.27, Media: 4.31
-            #MAE final en TEST: 0.820
+            # Variables fijadas para la búsqueda
+            fixed_windows = [4, 12, 26, 53]
+            fixed_stats = ["mean", "mean","mean","mean"]
+            fixed_lags = 53
+            #fixed_params = {'random_state': 15926,'verbose': -1}            
 
-            #Mejores 5 configuraciones encontradas:
-            #1. Stats: ['std', 'median', 'ratio_min_max', 'median']
-            #Windows: [2, 6, 8, 22]
-            #Params: n_est=100, lr=0.1, depth=4
-            #MAE: 0.3666
+            results = self.find_optimal_configuration(train, test, len(train)//1, 1000,fixed_stats, fixed_windows, fixed_params,fixed_lags)
 
-            best_stats, best_windows, best_params, best_score, best_mae, best_rmse, best_mape, best_dirc = self.find_optimal_configuration(train, test, len(train)//3, 1000)
+            if results is None or len(results) == 0:
+               best_score = 0.0
+               best_mae = 0.0
+               best_rmse = 0.0
+               best_mape = 0.0
+               best_dirc = 0.0
+            else:
+                best_score = results[0]['score']
+                best_mae = results[0]['mae']
+                best_rmse = results[0]['rmse']
+                best_mape = results[0]['mape']
+                best_dirc = results[0]['dir_acc']
+
+            if fixed_stats is None:
+                best_stats = results[0]['stats']
+            else:
+                best_stats = fixed_stats
+            if fixed_windows is None:
+                best_windows = results[0]['windows']
+            else:
+                best_windows = fixed_windows
+            if fixed_params is None:
+                best_params = results[0]['params']
+            else:
+                best_params = fixed_params
+
             print(f"Mejor score: {best_score:.4f}")
             print(f"Mejor MAE: {best_mae:.4f}")
             print(f"Mejor RMSE: {best_rmse:.4f}")
@@ -686,21 +427,25 @@ class DataPrice:
 
             wn.filterwarnings('ignore', category=Warning)
             # Crear el modelo ForecasterRecursive
-            regressor = LGBMRegressor(
-                n_estimators=best_params['n_estimators'],
-                learning_rate=best_params['learning_rate'],
-                max_depth=best_params['max_depth'],
-                num_leaves=best_params['num_leaves'],
-                min_child_samples=best_params['min_child_samples'],
-                subsample=best_params['subsample'],
-                colsample_bytree=best_params['colsample_bytree'],
-                random_state=15926,
-                verbose=-1
-            )
-
+            if fixed_params is None:
+                regressor = LGBMRegressor(
+                    n_estimators=best_params['n_estimators'],
+                    learning_rate=best_params['learning_rate'],
+                    max_depth=best_params['max_depth'],
+                    num_leaves=best_params['num_leaves'],
+                    min_child_samples=best_params['min_child_samples'],
+                    subsample=best_params['subsample'],
+                    colsample_bytree=best_params['colsample_bytree'],
+                    random_state=15926,
+                    verbose=-1
+                )
+            else:
+               params = fixed_params
+               regressor = LGBMRegressor(**params)   
+            
             forecaster = ForecasterRecursive(
                 regressor       = regressor,
-                lags            = 4,
+                lags            = fixed_lags,
                 window_features = window_features
             )
 
