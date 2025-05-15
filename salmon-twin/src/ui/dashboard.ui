@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1200</width>
-    <height>800</height>
+    <width>1625</width>
+    <height>1001</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -31,8 +31,8 @@
   </property>
   <property name="styleSheet">
    <string notr="true">QMainWindow {   
-	background-image: url(:/assets/images/FarmAerea.jpg);
-	background-position: center;	
+	background-image: url(:/assets/images/SeaFloor.jpeg);
+	background-position: extend;	
 	font: 14pt &quot;Segoe UI&quot;;	
 }
 </string>
@@ -51,7 +51,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1200</width>
+     <width>1625</width>
      <height>27</height>
     </rect>
    </property>

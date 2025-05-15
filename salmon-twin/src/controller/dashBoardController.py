@@ -200,12 +200,11 @@ class dashBoardController:
             
             raft.setPerCentage(sliderValue)
             perCent = raft.getPerCentage()/100
-            # Dias de predicción
-            forescastDays = int(365*perCent*4)           
-
             # Filtrar los datos de temperatura de entrenamiento con la fecha inicial y hasta la fecha actual
             delta_days = (raft.getEndDate() - raft.getStartDate()).days
             forescast_start_date = raft.getStartDate() + timedelta(delta_days * perCent)
+            # Dias de predicción
+            forescastDays = (raft.getEndDate() - forescast_start_date).days 
             dataTemp = dataTemp[dataTemp['ds'].apply(lambda x: pd.Timestamp(x) <= pd.Timestamp(forescast_start_date))]            
             data_forecast = self.tempModel.fitTempData(dataTemp,forescastDays)
             if data_forecast is not None:
@@ -303,12 +302,12 @@ class dashBoardController:
         # Limpiar la vista
         self._clear_dashboard()        
         # Dibujar la balsa
-        self.temperature_plot_widget = self._draw_graph_temperature(0,1,raft)        
-        self._draw_growth_model(1,1,raft)
-        self._draw_price(2,1,raft)
         self._draw_infopanel(0,0,raft)
-        self._draw_schematic(1,0)        
-        self._draw_schematic_3d(2,0,raft)
+        self._draw_schematic(0,1)
+        self._draw_graph_temperature(1,0,raft)
+        self._draw_growth_model(1,1,raft)
+        self._draw_price(2,0,raft)
+        self._draw_schematic_3d(2,1,raft)
 
     # Dibujar el precio del salmón
     def _draw_price(self, pos_i, pos_j, raft):
@@ -967,11 +966,18 @@ class dashBoardController:
             region = "------"
         else:
             region = raft.getSeaRegion()    
-        plot_widget = pg.PlotWidget(title="Temperatura del mar en {0}".format(region))
-        plot_widget.setLabels(left="Grados ºC", bottom="Fechas")        
+        plot_widget = pg.PlotWidget()
+        plot_widget.setTitle(title="Temperatura del mar en la región de {0}".format(region), color='k')
+        plot_widget.setLabels(left="Grados ºC")        
         plot_widget.showGrid(x=True, y=True)
-        plot_widget.setBackground((0, 0, 0, 140))
-        plot_widget.addLegend()        
+        # Color negro para los ejes
+        plot_widget.getAxis('left').setPen('k')  # Color negro para el eje y
+        plot_widget.getAxis('left').setTextPen('k')  # Color negro para las etiquetas del eje y
+        plot_widget.getAxis('bottom').setPen('k')  # Color negro para el eje x
+        plot_widget.getAxis('bottom').setTextPen('k')  # Color negro para las etiquetas del eje x
+        # Fondo con tema claro
+        plot_widget.setBackground((240, 240, 240, 180))        
+        legend = plot_widget.addLegend()
 
         # Agregar datos al gráfico si existen
         if raft is None or raft.getTemperature().empty:
@@ -1019,7 +1025,7 @@ class dashBoardController:
                 axis.setLabel("", units="")
 
                 # Crear un ScatterPlotItem para permitir el tooltip
-                scatter = pg.ScatterPlotItem(x=x, y=y, pen=pg.mkPen(None), brush=pg.mkBrush(255, 255, 255, 120), size=7)
+                scatter = pg.ScatterPlotItem(x=x, y=y, pen=pg.mkPen(color='k'), brush=pg.mkBrush(255, 255, 255, 120), size=7)
                 plot_widget.addItem(scatter)
 
                 # Crear una línea vertical
@@ -1027,14 +1033,20 @@ class dashBoardController:
                 plot_widget.addItem(vline)
 
                 # Graficar los datos de temperatura
-                plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2), name="Temperatura del mar histórico")
+                plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2), name="Histórico", color='k')
                 if df_temperature_forecast is not None and not df_temperature_forecast.empty:
                     # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
                     self.x_forecast = df_temperature_forecast['ds'].map(pd.Timestamp.timestamp).values
                     self.y_forecast = df_temperature_forecast['yhat'].values
 
                     # Graficar los datos de predicción de temperatura
-                    plot_widget.plot(self.x_forecast, self.y_forecast, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Predicción de Temperatura del mar")  
+                    plot_widget.plot(self.x_forecast, self.y_forecast, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Predicción", color='k')  
+
+                    # Establecer color negro para la leyenda
+                    for item in legend.items:
+                        label = item[1]
+                        texto_original = label.text
+                        label.setText(texto_original, color='k')
 
                 # Ajustar los rangos de los ejes de manera dinámica
                 plot_widget.setXRange(x.min(), x.max(), padding=0.1)
@@ -1053,20 +1065,17 @@ class dashBoardController:
 
                 # Añadir línea vertical para la fecha actual (usa un color diferente)
                 self.date_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
-                plot_widget.addItem(self.date_vline)
+                initial_pos = self.x_forecast[0]
+                self.date_vline.setPos(initial_pos)
+                # Añadir línea vertical para la predicción con la fecha actual (usa un color diferente)                
                 self.date_vline_forescast = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine))
+                self.date_vline_forescast.setPos(initial_pos)
+                # Añadir la líneas verticales al gráfico
                 plot_widget.addItem(self.date_vline_forescast)
+                plot_widget.addItem(self.date_vline)
+                
         
-                # Si es la primera vez, inicializar la línea en la posición del slider (25%)
-                if hasattr(self, 'date_vline_forescast'):
-                    initial_pos = x[0] + (x[-1] - x[0]) * raft.getPerCentage()/100
-                    self.date_vline_forescast.setPos(initial_pos)
-                if hasattr(self, 'date_vline'):
-                    initial_pos = x[0] + (x[-1] - x[0]) * raft.getPerCentage()/100
-                    self.date_vline.setPos(initial_pos)
-        
-        self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)
-        return plot_widget
+        self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)        
 
     # Cargar las balsas marinas
     def load_rafts_from_controller(self):        
