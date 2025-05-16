@@ -309,15 +309,73 @@ class dashBoardController:
         self._draw_price(2,0,raft)
         self._draw_schematic_3d(2,1,raft)
 
+    #Actualiza los ticks del eje X cuando cambia el rango visible
+    def _update_price_axis_ticks(self, range_vals):
+        # Obtener el rango visible actual
+        min_x, max_x = range_vals[0]
+        x_range = max_x - min_x
+    
+        # Obtener el ancho del gráfico en píxeles
+        plot_width = self._price_plot_widget.width()
+    
+        # Calcular cuántos ticks pueden caber basado en el ancho disponible
+        # Asumiendo que cada label necesita aproximadamente 130px para ser legible
+        max_ticks_by_width = max(3, int(plot_width / 130))
+    
+        # Filtrar los índices visibles dentro del rango actual
+        visible_indices = np.where((self._temp_x_values >= min_x) & (self._temp_x_values <= max_x))[0]
+    
+        # Determinar si estamos en un nivel de zoom grande
+        is_high_zoom = len(visible_indices) < 5 and x_range > 86400  # Al menos un día y pocos puntos visibles
+    
+        if is_high_zoom and x_range > 0:
+            # Caso de zoom elevado: generar ticks interpolados a intervalos regulares
+            optimal_tick_count = min(max_ticks_by_width, 12)
+        
+            # Generar timestamps interpolados uniformemente distribuidos
+            interpolated_timestamps = np.linspace(min_x, max_x, optimal_tick_count)
+        
+            # Crear los ticks con las fechas formateadas
+            if plot_width < 500:
+                ticks = [(ts, self._format_date_compact(ts)) for ts in interpolated_timestamps]
+            else:
+                ticks = [(ts, self._format_date(ts)) for ts in interpolated_timestamps]
+    
+        elif len(visible_indices) > 0:
+            # Caso normal: usar los puntos de datos existentes
+            time_based_ticks = min(10, max(4, int(x_range / (86400 * 7))))
+            num_ticks = min(time_based_ticks, max_ticks_by_width)
+        
+            step = max(1, len(visible_indices) // num_ticks)
+            tick_indices = visible_indices[::step]
+        
+            # Usar formato de fecha más compacto cuando hay poco espacio
+            if plot_width < 500:
+                ticks = [(self._temp_x_values[i], self._format_date_compact(self._temp_x_values[i])) for i in tick_indices]
+            else:
+                ticks = [(self._temp_x_values[i], self._format_date(self._temp_x_values[i])) for i in tick_indices]
+        else:
+            # No hay puntos visibles
+            return
+        
+        # Actualizar los ticks del eje X
+        self._price_plot_widget.getAxis('bottom').setTicks([ticks])
+
     # Dibujar el precio del salmón
     def _draw_price(self, pos_i, pos_j, raft):
-        # Crear un widget de gráfico de PyQtGraph
-        plot_widget = pg.PlotWidget(title="Precio del Salmón")
-        plot_widget.setLabels(left="EUR/kg", bottom="Fechas")
+        plot_widget = pg.PlotWidget()        
+        plot_widget.setTitle(title="Precio del Salmón EUR/kg", color='k')
+        plot_widget.setLabels(left="EUR/kg")
         plot_widget.showGrid(x=True, y=True)
         plot_widget.setBackground((0, 0, 0, 140))    
-        # Definir una leyenda para el gráfico
-        plot_widget.addLegend()
+        # Color negro para los ejes
+        plot_widget.getAxis('left').setPen('k')  # Color negro para el eje y
+        plot_widget.getAxis('left').setTextPen('k')  # Color negro para las etiquetas del eje y
+        plot_widget.getAxis('bottom').setPen('k')  # Color negro para el eje x
+        plot_widget.getAxis('bottom').setTextPen('k')  # Color negro para las etiquetas del eje x
+        # Fondo con tema claro
+        plot_widget.setBackground((240, 240, 240, 180))        
+        legend = plot_widget.addLegend()
 
         # Obtener los datos de precios
         price_data = raft.getPriceData()        
@@ -353,11 +411,22 @@ class dashBoardController:
             y = filtered_price['EUR_kg'].values
 
             # Graficar los datos históricos de precio
-            plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2), 
-                             name="Precio Histórico EUR/kg")
+            plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2),name="Histórico")
             
-            # Crear un ScatterPlotItem para permitir el tooltip
-            scatter = pg.ScatterPlotItem(x=x, y=y, pen=pg.mkPen(None), brush=pg.mkBrush(255, 255, 255, 120), size=7)
+            # Guardar referencia al widget y a los valores de X para actualizaciones posteriores
+            self._price_plot_widget = plot_widget
+            self._price_x_values = x
+
+            # Conectar la función para actualizar los ticks cuando cambia el rango
+            # Se filtra el objeto vb: El objeto ViewBox que cambió que se pasa como argumento al no ser necesario
+            # Se conecta la señal sigRangeChanged a la función _update_temperature_axis_ticks
+            plot_widget.getViewBox().sigRangeChanged.connect(lambda vb, range_vals: self._update_price_axis_ticks(range_vals))
+
+            # Establecer los ticks iniciales
+            self._update_price_axis_ticks([[x.min(), x.max()], [y.min(), y.max()]])
+            
+            # Crear un ScatterPlotItem para ver los puntos de datos
+            scatter = pg.ScatterPlotItem(x=x, y=y, pen=pg.mkPen(color='k'), brush=pg.mkBrush(255, 255, 255, 120), size=7)
             plot_widget.addItem(scatter)
 
             if price_data_forescast is not None and not price_data_forescast.empty:                
@@ -377,7 +446,7 @@ class dashBoardController:
 
                 # Graficar los datos de precio pronosticados
                 plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), 
-                                 name="Precio Pronosticado EUR/kg Promedio")                              
+                                 name="Predicción")                              
                 
                 # Configurar el rango de visualización para mostrar desde la fecha inicial a la fecha final
                 min_x = min(x.min(), x_forecast.min())
@@ -388,38 +457,37 @@ class dashBoardController:
                 plot_widget.setXRange(min_x, max_x, padding=0.1)
                 plot_widget.setYRange(min_y, max_y, padding=0.1)
 
-                # Filtros dinámicos para los ticks utilizando todas las fechas
-                all_x = np.concatenate([x, x_forecast])               
-                sorted_x = np.sort(all_x)
-                indices = np.linspace(0, len(sorted_x)-1, 7).astype(int)
-                ticks = [(sorted_x[i], self._format_date(sorted_x[i])) for i in indices]
-
                 # Personalizar los ticks del eje X
-                axis = plot_widget.getAxis('bottom')
-                axis.setTicks([ticks])
+                axis = plot_widget.getAxis('bottom')                
                 axis.setLabel("", units="")
 
                 # Añadir línea vertical para la fecha actual
                 self.price_vline_forescast = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine))
                 plot_widget.addItem(self.price_vline_forescast)
-                self.price_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
-                plot_widget.addItem(self.price_vline)                
+                self.price_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='b', width=2, style=Qt.DashLine))
+                plot_widget.addItem(self.price_vline) 
+                # Establecer posición inicial
+                initial_pos = x_forecast[0]
+                self.price_vline.setPos(initial_pos)
+                self.price_vline_forescast.setPos(initial_pos)
+
             else:
                 # Si no hay datos de predicción, solo mostrar los históricos
                 plot_widget.setXRange(x.min(), x.max(), padding=0.1)
                 plot_widget.setYRange(y.min(), y.max(), padding=0.1)
                 
-                # Configurar los ticks para los datos históricos                
-                indices = np.linspace(0, len(x)-1, 7).astype(int)
-                ticks = [(x[i], self._format_date(x[i])) for i in indices]
-                
-                axis = plot_widget.getAxis('bottom')
-                axis.setTicks([ticks])
+                axis = plot_widget.getAxis('bottom')                
                 axis.setLabel("", units="")
                 
                 # Añadir línea vertical para la fecha actual                
-                self.price_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
+                self.price_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='b', width=2, style=Qt.DashLine))
                 plot_widget.addItem(self.price_vline)
+
+        # Establecer color negro para la leyenda
+        for item in legend.items:
+            label = item[1]
+            texto_original = label.text
+            label.setText(texto_original, color='k')
                 
         # Agregar el widget al layout
         self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
@@ -966,36 +1034,53 @@ class dashBoardController:
         x_range = max_x - min_x
     
         # Obtener el ancho del gráfico en píxeles
-        plot_width = self.temp_plot_widget.width()
+        plot_width = self._temp_plot_widget.width()
     
         # Calcular cuántos ticks pueden caber basado en el ancho disponible
         # Asumiendo que cada label necesita aproximadamente 130px para ser legible
         max_ticks_by_width = max(3, int(plot_width / 130))
     
-        # Determinar cuántos ticks mostrar (el mínimo entre el cálculo por tiempo y por espacio)
-        time_based_ticks = min(10, max(4, int(x_range / (86400 * 7))))
-        num_ticks = min(time_based_ticks, max_ticks_by_width)
-    
         # Filtrar los índices visibles dentro del rango actual
-        # Usar np.where para obtener los índices de los valores visibles
-        visible_indices = np.where((self.temp_x_values >= min_x) & (self.temp_x_values <= max_x))[0]
+        visible_indices = np.where((self._temp_x_values >= min_x) & (self._temp_x_values <= max_x))[0]
     
-        if len(visible_indices) > 0:
+        # Determinar si estamos en un nivel de zoom grande
+        is_high_zoom = len(visible_indices) < 5 and x_range > 86400  # Al menos un día y pocos puntos visibles
+    
+        if is_high_zoom and x_range > 0:
+            # Caso de zoom elevado: generar ticks interpolados a intervalos regulares
+            optimal_tick_count = min(max_ticks_by_width, 12)
+        
+            # Generar timestamps interpolados uniformemente distribuidos
+            interpolated_timestamps = np.linspace(min_x, max_x, optimal_tick_count)
+        
+            # Crear los ticks con las fechas formateadas
+            if plot_width < 500:
+                ticks = [(ts, self._format_date_compact(ts)) for ts in interpolated_timestamps]
+            else:
+                ticks = [(ts, self._format_date(ts)) for ts in interpolated_timestamps]
+    
+        elif len(visible_indices) > 0:
+            # Caso normal: usar los puntos de datos existentes
+            time_based_ticks = min(10, max(4, int(x_range / (86400 * 7))))
+            num_ticks = min(time_based_ticks, max_ticks_by_width)
+        
             step = max(1, len(visible_indices) // num_ticks)
             tick_indices = visible_indices[::step]
         
             # Usar formato de fecha más compacto cuando hay poco espacio
             if plot_width < 500:
-                ticks = [(self.temp_x_values[i], self._format_date_compact(self.temp_x_values[i])) for i in tick_indices]
+                ticks = [(self._temp_x_values[i], self._format_date_compact(self._temp_x_values[i])) for i in tick_indices]
             else:
-                ticks = [(self.temp_x_values[i], self._format_date(self.temp_x_values[i])) for i in tick_indices]
+                ticks = [(self._temp_x_values[i], self._format_date(self._temp_x_values[i])) for i in tick_indices]
+        else:
+            # No hay puntos visibles
+            return
         
-            # Actualizar los ticks del eje X
-            self.temp_plot_widget.getAxis('bottom').setTicks([ticks])
+        # Actualizar los ticks del eje X
+        self._temp_plot_widget.getAxis('bottom').setTicks([ticks])
 
     # Graficar una serie temporal
-    def _draw_graph_temperature(self,pos_i,pos_j,raft):        
-        # Crear un PlotItem para representar la gráfica
+    def _draw_graph_temperature(self,pos_i,pos_j,raft):
         if raft is None:
             region = "------"
         else:
@@ -1053,7 +1138,7 @@ class dashBoardController:
                 # Cambiar el label del eje X de manera específica
                 axis.setLabel("", units="")
 
-                # Crear un ScatterPlotItem para permitir el tooltip
+                # Crear un ScatterPlotItem para ver los puntos de datos
                 scatter = pg.ScatterPlotItem(x=x, y=y, pen=pg.mkPen(color='k'), brush=pg.mkBrush(255, 255, 255, 120), size=7)
                 plot_widget.addItem(scatter)
 
@@ -1061,8 +1146,8 @@ class dashBoardController:
                 plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2), name="Histórico", color='k')
 
                 # Guardar referencia al widget y a los valores de X para actualizaciones posteriores
-                self.temp_plot_widget = plot_widget
-                self.temp_x_values = x
+                self._temp_plot_widget = plot_widget
+                self._temp_x_values = x
 
                 # Conectar la función para actualizar los ticks cuando cambia el rango
                 # Se filtra el objeto vb: El objeto ViewBox que cambió que se pasa como argumento al no ser necesario
@@ -1080,11 +1165,11 @@ class dashBoardController:
                     # Graficar los datos de predicción de temperatura
                     plot_widget.plot(self.x_forecast, self.y_forecast, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Predicción", color='k')  
 
-                    # Establecer color negro para la leyenda
-                    for item in legend.items:
-                        label = item[1]
-                        texto_original = label.text
-                        label.setText(texto_original, color='k')
+                # Establecer color negro para la leyenda
+                for item in legend.items:
+                    label = item[1]
+                    texto_original = label.text
+                    label.setText(texto_original, color='k')
 
                 # Ajustar los rangos de los ejes de manera dinámica
                 plot_widget.setXRange(x.min(), x.max(), padding=0.1)
