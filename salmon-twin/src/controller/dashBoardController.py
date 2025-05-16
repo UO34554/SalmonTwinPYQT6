@@ -959,6 +959,40 @@ class dashBoardController:
             plot_widget.setToolTip(None)
     '''
 
+    #Actualiza los ticks del eje X cuando cambia el rango visible
+    def _update_temperature_axis_ticks(self, range_vals):
+        # Obtener el rango visible actual
+        min_x, max_x = range_vals[0]
+        x_range = max_x - min_x
+    
+        # Obtener el ancho del gráfico en píxeles
+        plot_width = self.temp_plot_widget.width()
+    
+        # Calcular cuántos ticks pueden caber basado en el ancho disponible
+        # Asumiendo que cada label necesita aproximadamente 130px para ser legible
+        max_ticks_by_width = max(3, int(plot_width / 130))
+    
+        # Determinar cuántos ticks mostrar (el mínimo entre el cálculo por tiempo y por espacio)
+        time_based_ticks = min(10, max(4, int(x_range / (86400 * 7))))
+        num_ticks = min(time_based_ticks, max_ticks_by_width)
+    
+        # Filtrar los índices visibles dentro del rango actual
+        # Usar np.where para obtener los índices de los valores visibles
+        visible_indices = np.where((self.temp_x_values >= min_x) & (self.temp_x_values <= max_x))[0]
+    
+        if len(visible_indices) > 0:
+            step = max(1, len(visible_indices) // num_ticks)
+            tick_indices = visible_indices[::step]
+        
+            # Usar formato de fecha más compacto cuando hay poco espacio
+            if plot_width < 500:
+                ticks = [(self.temp_x_values[i], self._format_date_compact(self.temp_x_values[i])) for i in tick_indices]
+            else:
+                ticks = [(self.temp_x_values[i], self._format_date(self.temp_x_values[i])) for i in tick_indices]
+        
+            # Actualizar los ticks del eje X
+            self.temp_plot_widget.getAxis('bottom').setTicks([ticks])
+
     # Graficar una serie temporal
     def _draw_graph_temperature(self,pos_i,pos_j,raft):        
         # Crear un PlotItem para representar la gráfica
@@ -1012,15 +1046,10 @@ class dashBoardController:
             else:
                 # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
                 x = df_temperature['ds'].map(pd.Timestamp.timestamp).values
-                y = df_temperature['y'].values                           
-            
-                # Filtros dinámicos para los ticks
-                interval = max(1, len(x) // 7) 
-                ticks = [(x[i], self._format_date(x[i])) for i in range(0, len(x), interval)]
+                y = df_temperature['y'].values
 
                 # Personalizar los ticks del eje X
-                axis = plot_widget.getAxis('bottom')
-                axis.setTicks([ticks])
+                axis = plot_widget.getAxis('bottom')                
                 # Cambiar el label del eje X de manera específica
                 axis.setLabel("", units="")
 
@@ -1028,12 +1057,21 @@ class dashBoardController:
                 scatter = pg.ScatterPlotItem(x=x, y=y, pen=pg.mkPen(color='k'), brush=pg.mkBrush(255, 255, 255, 120), size=7)
                 plot_widget.addItem(scatter)
 
-                # Crear una línea vertical
-                vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='y', style=Qt.DashLine))
-                plot_widget.addItem(vline)
-
                 # Graficar los datos de temperatura
                 plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2), name="Histórico", color='k')
+
+                # Guardar referencia al widget y a los valores de X para actualizaciones posteriores
+                self.temp_plot_widget = plot_widget
+                self.temp_x_values = x
+
+                # Conectar la función para actualizar los ticks cuando cambia el rango
+                # Se filtra el objeto vb: El objeto ViewBox que cambió que se pasa como argumento al no ser necesario
+                # Se conecta la señal sigRangeChanged a la función _update_temperature_axis_ticks
+                plot_widget.getViewBox().sigRangeChanged.connect(lambda vb, range_vals: self._update_temperature_axis_ticks(range_vals))
+
+                # Establecer los ticks iniciales
+                self._update_temperature_axis_ticks([[x.min(), x.max()], [y.min(), y.max()]])
+
                 if df_temperature_forecast is not None and not df_temperature_forecast.empty:
                     # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
                     self.x_forecast = df_temperature_forecast['ds'].map(pd.Timestamp.timestamp).values
@@ -1064,7 +1102,7 @@ class dashBoardController:
                 '''
 
                 # Añadir línea vertical para la fecha actual (usa un color diferente)
-                self.date_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
+                self.date_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='b', width=2, style=Qt.DashLine))
                 initial_pos = self.x_forecast[0]
                 self.date_vline.setPos(initial_pos)
                 # Añadir línea vertical para la predicción con la fecha actual (usa un color diferente)                
