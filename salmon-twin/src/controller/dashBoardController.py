@@ -366,8 +366,7 @@ class dashBoardController:
         plot_widget = pg.PlotWidget()        
         plot_widget.setTitle(title="Precio del Salmón EUR/kg", color='k')
         plot_widget.setLabels(left="EUR/kg")
-        plot_widget.showGrid(x=True, y=True)
-        plot_widget.setBackground((0, 0, 0, 140))    
+        plot_widget.showGrid(x=True, y=True)        
         # Color negro para los ejes
         plot_widget.getAxis('left').setPen('k')  # Color negro para el eje y
         plot_widget.getAxis('left').setTextPen('k')  # Color negro para las etiquetas del eje y
@@ -496,12 +495,17 @@ class dashBoardController:
     def _draw_growth_model(self,pos_i,pos_j,raft):        
         # Crear un widget de gráfico de PyQtGraph
         plot_widget = pg.PlotWidget()
-        plot_widget.setTitle("Modelo de Crecimiento de Biomasa")
-        plot_widget.setLabel("left", "Biomasa (kg)")
-        plot_widget.showGrid(x=True, y=True)
-        plot_widget.setBackground((0, 0, 0, 140))    
-        # Definir una leyenda para el gráfico
-        plot_widget.addLegend()
+        plot_widget.setTitle("Modelo de Crecimiento de Biomasa Kg", color='k')
+        plot_widget.setLabels(left="Biomasa (kg)")
+        plot_widget.showGrid(x=True, y=True)        
+        # Color negro para los ejes
+        plot_widget.getAxis('left').setPen('k')  # Color negro para el eje y
+        plot_widget.getAxis('left').setTextPen('k')  # Color negro para las etiquetas del eje y
+        plot_widget.getAxis('bottom').setPen('k')  # Color negro para el eje x
+        plot_widget.getAxis('bottom').setTextPen('k')  # Color negro para las etiquetas del eje x
+        # Fondo con tema claro
+        plot_widget.setBackground((240, 240, 240, 180))        
+        legend = plot_widget.addLegend()
     
         # Agregar datos al gráfico si existen
         if raft is None or raft.getTemperature().empty:
@@ -547,41 +551,42 @@ class dashBoardController:
                 y_biomass_f = growth_data_forescast['biomass'].values
                 y_number = growth_data['number_fishes'].values
                 y_number_f = growth_data_forescast['number_fishes'].values
-            
-                # Calcular puntos equidistantes a lo largo del eje X                
-                num_ticks = 7
-                indices = np.linspace(0, len(x)-1, num_ticks).astype(int)
-                ticks = [(x[i], self._format_date(x[i])) for i in indices]
-                # Eliminar el ultimo tick para evitar duplicados                
-                ticks.remove(ticks[-1])
-                # Añadir el tick de la fecha actual                
-                current_date_tick = x[len(x)-1]                
-                num_ticks = 4
-                indices = np.linspace(0, len(xf)-1, num_ticks).astype(int)
-                ticks_f = [(xf[i], self._format_date(xf[i])) for i in indices]
-                # Combinar ticks de ambos conjuntos de datos
-                ticks.extend(ticks_f)  
+
+                # Configurar el rango de visualización para mostrar desde la fecha inicial a la fecha final
+                min_x = min(x.min(), xf.min())
+                max_x = max(x.max(), xf.max())
+                min_y = min(y_biomass.min(), y_biomass_f.min(),y_number.min(), y_number_f.min())
+                max_y = max(y_biomass.max(), y_biomass_f.max(),y_number.max(), y_number_f.max())
+
+                plot_widget.setXRange(min_x, max_x, padding=0.1)
+                plot_widget.setYRange(min_y, max_y, padding=0.1)
             
                 # Personalizar los ticks del eje X
-                axis = plot_widget.getAxis('bottom')
-                axis.setTicks([ticks])
+                axis = plot_widget.getAxis('bottom')                
                 axis.setLabel("", units="")
             
                 # Graficar los datos de biomasa, crecimiento individual y número de peces
-                plot_widget.plot(x, y_biomass, pen=pg.mkPen(color='g', width=2), name="Biomasa Total (kg)")
-                plot_widget.plot(xf, y_biomass_f, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine), name="Biomasa Pronosticada (kg)")
-                plot_widget.plot(x, y_number, pen=pg.mkPen(color='r', width=2), name="Nº de Peces")
-                plot_widget.plot(xf, y_number_f, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Nº de Peces Pronosticado")
+                plot_widget.plot(x, y_biomass, pen=pg.mkPen(color='b', width=2), name="Biomasa historica")
+                plot_widget.plot(xf, y_biomass_f, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Biomasa Predicción")
+                plot_widget.plot(x, y_number, pen=pg.mkPen(color='darkblue', width=2), name="Nº de Peces histórico")
+                plot_widget.plot(xf, y_number_f, pen=pg.mkPen(color='darkred', width=2, style=Qt.DashLine), name="Nº de Peces Predicción")
 
                 # Añadir línea vertical para la fecha actual
                 self.growth_vline_forescast = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine))
                 plot_widget.addItem(self.growth_vline_forescast)
-                self.growth_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='g', width=2, style=Qt.DashLine))
+                self.growth_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='b', width=2, style=Qt.DashLine))
                 plot_widget.addItem(self.growth_vline)
-
-                # Establecer posición inicial                
-                initial_pos = current_date_tick
+                                
+                # Establecer posición inicial
+                initial_pos = xf[0]
                 self.growth_vline.setPos(initial_pos)
+                self.growth_vline_forescast.setPos(initial_pos)
+        
+        # Establecer color negro para la leyenda
+        for item in legend.items:
+            label = item[1]
+            texto_original = label.text
+            label.setText(texto_original, color='k')
             
         self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
 

@@ -185,13 +185,16 @@ class DataPrice:
                 min_windows = min(windows)
                 if max_possible_window < max_windows:
                     scale_factor = max_possible_window / max_windows
-                    best_windows = [
+                    windows = [
                         max(min_windows, int(min_windows * scale_factor)),
                         max(min_windows, int(windows[1] * scale_factor)),
                         max(min_windows, int(windows[2] * scale_factor)),
                         max_possible_window
                     ]
-                    print(f"\nAjustando tamaños de ventana {windows} a: {best_windows} debido a tamaño limitado de datos")
+                    # Si hay repetidos dejar como 1,2,3,4
+                    if len(set(windows)) < len(windows):  # Detecta valores duplicados
+                        windows = [1, 2, 3, 4] 
+                    print(f"\nAjustando tamaños de ventana a {windows} debido a tamaño limitado de datos")
             
                 # 3. Seleccionar parámetros aleatorios para el regresor
                 if fixed_params is None:
@@ -219,7 +222,7 @@ class DataPrice:
             
                 forecaster = ForecasterRecursive(
                     regressor=regressor,                    
-                    lags=lags,                    
+                    lags=min(lags,len(train)-1),  # Asegurarse de que lags no exceda el tamaño de train        
                     window_features=window_features
                 )
             
@@ -385,16 +388,24 @@ class DataPrice:
                 best_mape = results[0]['mape']
                 best_dirc = results[0]['dir_acc']
 
-            if fixed_stats is None:
+            if fixed_stats is None and len(results) > 0:
                 best_stats = results[0]['stats']
+            elif fixed_stats is None and len(results) == 0:
+                best_stats = ["mean", "mean","mean","mean"]
             else:
                 best_stats = fixed_stats
-            if fixed_windows is None:
+
+            if fixed_windows is None and len(results) > 0:
                 best_windows = results[0]['windows']
+            elif fixed_windows is None and len(results) == 0:
+                best_windows = [4, 12, 26, 53]
             else:
                 best_windows = fixed_windows
-            if fixed_params is None:
+
+            if fixed_params is None and len(results) > 0:
                 best_params = results[0]['params']
+            elif fixed_params is None and len(results) == 0:
+                best_params = {'random_state': 15926,'verbose': -1}
             else:
                 best_params = fixed_params
 
@@ -408,6 +419,7 @@ class DataPrice:
             print(f"Mejores tamaños de ventana: {best_windows}")
             
             max_possible_window = len(train)-1
+
             max_windows = max(best_windows)
             min_windows = min(best_windows)
             if max_possible_window < max_windows:
@@ -418,6 +430,9 @@ class DataPrice:
                     max(min_windows, int(best_windows[2] * scale_factor)),
                     max_possible_window
                 ]
+                # Si hay repetidos dejar como 1,2,3,4
+                if len(set(best_windows)) < len(best_windows):  # Detecta valores duplicados
+                    best_windows = [1, 2, 3, 4]
                 print(f"Ajustando tamaños de ventana a: {best_windows} debido a tamaño limitado de datos")
 
             window_features = RollingFeatures(
@@ -427,7 +442,7 @@ class DataPrice:
 
             wn.filterwarnings('ignore', category=Warning)
             # Crear el modelo ForecasterRecursive
-            if fixed_params is None:
+            if fixed_params is None and len(results) > 0:
                 regressor = LGBMRegressor(
                     n_estimators=best_params['n_estimators'],
                     learning_rate=best_params['learning_rate'],
@@ -440,12 +455,12 @@ class DataPrice:
                     verbose=-1
                 )
             else:
-               params = fixed_params
+               params = best_params
                regressor = LGBMRegressor(**params)   
             
             forecaster = ForecasterRecursive(
                 regressor       = regressor,
-                lags            = fixed_lags,
+                lags            = min(fixed_lags,len(train)-1),  # Asegurarse de que lags no exceda el tamaño de train
                 window_features = window_features
             )
 
