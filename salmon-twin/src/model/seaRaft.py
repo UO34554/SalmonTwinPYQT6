@@ -99,7 +99,7 @@ class seaRaft:
     def getCurrentDate(self)->datetime:
         if self._perCentage is None:
             return self._startDate        
-        return pd.to_datetime(self._startDate + (self._endDate - self._startDate) * (self._perCentage / 100.0))
+        return pd.to_datetime(self._startDate + (self._endDate - self._startDate) * (self._perCentage / 1000.0))
     
     # Devuelve la fecha máxima de predicción si la hay
     # qué será la maxima de la temperatura, el precio y el crecimiento

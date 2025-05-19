@@ -79,7 +79,7 @@ class dashBoardController:
             # Filtrar los datos de temperatura con la fecha inicial y la fecha actual
             percent = raft.getPerCentage()
             delta_days = (raft.getEndDate() - raft.getStartDate()).days
-            days = int(delta_days * percent / 100)
+            days = int(delta_days * percent / 1000)
             fecha_actual = raft.getStartDate() + timedelta(days)
             df_temperature = df_temperature[(df_temperature['ds'].dt.date >= raft.getStartDate()) & 
                                             (df_temperature['ds'].dt.date <= fecha_actual)]            
@@ -191,7 +191,7 @@ class dashBoardController:
         else:
             # Implementar la predicción de la temperatura del mar según indica el slider
             if self.dateSliderCurrent is None:
-                sliderValue = 25
+                sliderValue = 0
             else:
                 sliderValue = self.dateSliderCurrent.value()
             if sliderValue==0:
@@ -199,7 +199,7 @@ class dashBoardController:
                 return
             
             raft.setPerCentage(sliderValue)
-            perCent = raft.getPerCentage()/100
+            perCent = raft.getPerCentage()/1000
             # Filtrar los datos de temperatura de entrenamiento con la fecha inicial y hasta la fecha actual
             delta_days = (raft.getEndDate() - raft.getStartDate()).days
             forescast_start_date = raft.getStartDate() + timedelta(delta_days * perCent)
@@ -213,7 +213,9 @@ class dashBoardController:
                 if self.raftCon.update_rafts_temp_forecast(raft):    
                     auxTools.show_info_dialog(cfg.DASHBOARD_PREDICT_TEMP_SUCCESS)
                 else:
-                    auxTools.show_error_message(cfg.DASHBOARD_PREDICT_TEMP_ERROR)        
+                    auxTools.show_error_message(cfg.DASHBOARD_PREDICT_TEMP_ERROR)
+            else:
+                auxTools.show_error_message(cfg.DASHBOARD_PREDICT_TEMP_ERROR.format(error=self.tempModel.lastError))        
 
     def on_price_predict(self):
         raft = self.choice_raft_list_dialog()
@@ -228,13 +230,15 @@ class dashBoardController:
             return
         # Llamar al método fit_price con las fechas específicas
         if self.dateSliderCurrent is None:
-            sliderValue = 25
+            sliderValue = 0
+            auxTools.show_error_message(cfg.DASHBOARD_NO_FORESCAST_PERIOD_ERROR)
+            return
         else:
             sliderValue = self.dateSliderCurrent.value()
 
         # Dias de predicción
-        perCent = raft.getPerCentage()/100
-        if self.priceModel.fit_price(perCent,start_date, end_date):
+        perCent = raft.getPerCentage()/1000
+        if self.priceModel.fit_price(perCent,start_date, end_date, False):
             # Guardar los datos de precios en la balsa
             raft.setPerCentage(sliderValue)           
             raft.setPriceForecast(self.priceModel.getPriceDataForecast())
@@ -572,7 +576,7 @@ class dashBoardController:
             # Filtrar los datos de temperatura con la fecha inicial y la fecha actual
             percent = raft.getPerCentage()
             delta_days = (raft.getEndDate() - raft.getStartDate()).days
-            days = int(delta_days * percent / 100)
+            days = int(delta_days * percent / 1000)
             fecha_actual = raft.getStartDate() + timedelta(days)
             df_temperature = df_temperature[(df_temperature['ds'].dt.date >= raft.getStartDate()) & 
                                         (df_temperature['ds'].dt.date <= fecha_actual)]
@@ -851,12 +855,12 @@ class dashBoardController:
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
     # --- Fin Grafico 2d ---
 
-    def _update_forescast_date(self,perCentage,raft,lforescastDate,lforescastFishNumber,lforescastBiomass,lforescastPrice,lforescastTotalValue):
-        # Mapeamos 0-100 desde la fecha actual hasta la fecha máxima de pronosticada
+    def _update_forescast_date(self, perCentage, raft, lforescastDate, lforescastFishNumber, lforescastBiomass, lforescastPrice, lforescastTotalValue):
+        # Mapeamos 0-1000 desde la fecha actual hasta la fecha máxima de pronosticada
         current_date = raft.getCurrentDate()
         max_date = raft.getMaxForecastDate()
         delta_days = (max_date - current_date).days        
-        current_day_offset = int(delta_days * (perCentage / 100))
+        current_day_offset = int(delta_days * (perCentage / 1000))  # Dividir por 1000
         current_date = current_date + timedelta(days=current_day_offset)
 
         # Formatear la fecha y actualizar la etiqueta
@@ -881,12 +885,12 @@ class dashBoardController:
 
     # Función para actualizar la etiqueta de la fecha cuando cambia el valor del slider
     # Actualiza las lineas verticales en todas las gráficas
-    def _update_current_date(self,perCentage,raft,lcurrentDate):
+    def _update_current_date(self, perCentage, raft, lcurrentDate):
         start_date = raft.getStartDate()
         end_date = raft.getEndDate()
-        # Mapeamos 0-100 al rango histórico
+        # Mapeamos 0-1000 al rango histórico
         delta_days = (end_date - start_date).days        
-        current_day_offset = int(delta_days * (perCentage / 100))
+        current_day_offset = int(delta_days * (perCentage / 1000))
         current_date = start_date + timedelta(days=current_day_offset)
 
         # Formatear la fecha y actualizar la etiqueta
@@ -928,15 +932,15 @@ class dashBoardController:
         sliderViewForescast = QWidget()
         sliderViewForescast.setLayout(sliderLayoutForescast)
 
-        # Configurar el slider con el rango 0-100
+        # Configurar el slider con el rango 0-1000
         self.dateSliderCurrent = QSlider(Qt.Horizontal)
         self.dateSliderCurrent.setMinimum(0)
-        self.dateSliderCurrent.setMaximum(100)            
+        self.dateSliderCurrent.setMaximum(1000)            
         self.dateSliderCurrent.setValue(raft.getPerCentage())
 
         self.dateSliderForecast = QSlider(Qt.Horizontal)
         self.dateSliderForecast.setMinimum(0)
-        self.dateSliderForecast.setMaximum(100)
+        self.dateSliderForecast.setMaximum(1000)
         # Valor inicial para el pronóstico
         self.dateSliderForecast.setValue(0)  
 
@@ -1069,8 +1073,12 @@ class dashBoardController:
     def _format_date(self, value):
         date = datetime.fromtimestamp(value)
         return date.strftime('%d/%m/%Y')
+    
+    def _format_date_compact(self, value):
+        """Formato compacto para fechas cuando hay poco espacio"""
+        date = datetime.fromtimestamp(value)
+        return date.strftime('%d/%m')  # Solo día/mes
 
-    ''' 
     # Mostrar un tooltip con la fecha y la temperatura y una línea vertical
     def _mouse_move_plot(self, event, plot_widget, x, y, y_forecast, vline):
         pos = event
@@ -1090,7 +1098,6 @@ class dashBoardController:
         else:
             vline.hide()
             plot_widget.setToolTip(None)
-    '''
 
     #Actualiza los ticks del eje X cuando cambia el rango visible
     def _update_temperature_axis_ticks(self, range_vals):
@@ -1176,7 +1183,7 @@ class dashBoardController:
                 # Eliminar valores NaT antes de filtrar
                 df_temperature_forecast = df_temperature_forecast.dropna(subset=['ds'])
                 # Filtrar la predicción para mostrar solo apartir de la fecha actual
-                perCentage = raft.getPerCentage() / 100
+                perCentage = raft.getPerCentage() / 1000
                 delta_days = (raft.getEndDate() - raft.getStartDate()).days
                 forescast_start_date = raft.getStartDate() + timedelta(delta_days * perCentage) - timedelta(days=30)                
                 df_temperature_forecast = df_temperature_forecast[(df_temperature_forecast['ds'].dt.date >= forescast_start_date)]
@@ -1251,7 +1258,7 @@ class dashBoardController:
                     def on_mouse_move(event):self._mouse_move_plot(event, plot_widget, x, y, self.y_forecast, vline)
                 else:            
                     def on_mouse_move(event):self._mouse_move_plot(event, plot_widget, x, y, None, vline)
-
+                
                 # Conectar el evento de movimiento del ratón
                 plot_widget.scene().sigMouseMoved.connect(on_mouse_move)
                 '''
@@ -1319,4 +1326,4 @@ class dashBoardController:
             pass
         elif file_type == "excel":
             # Implementar la carga de datos desde un archivo Excel 
-            pass
+            pass  

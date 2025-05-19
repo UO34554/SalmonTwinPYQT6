@@ -318,7 +318,7 @@ class DataPrice:
     # horizon_days (int): Número de días para la predicción
     # Retorna:
     # bool: True si se ajustó correctamente, False en caso contrario   
-    def fit_price(self, percent, start_date=None, end_date=None):
+    def fit_price(self, percent, start_date=None, end_date=None, adjust=False):
         self.lastError = None
         if self._price_data is None:
              self.lastError = cfg.PRICEMODEL_FIT_NO_DATA
@@ -368,12 +368,14 @@ class DataPrice:
             fixed_params = None
 
             # Variables fijadas para la búsqueda
-            fixed_windows = [4, 12, 26, 53]
-            fixed_stats = ["mean", "mean","mean","mean"]
-            fixed_lags = 53
-            #fixed_params = {'random_state': 15926,'verbose': -1}            
-
-            results = self.find_optimal_configuration(train, test, len(train)//1, 1000,fixed_stats, fixed_windows, fixed_params,fixed_lags)
+            if not adjust:
+                # Si no se ajusta, se fijan las ventanas y estadísticas por defecto
+                fixed_windows = [4, 12, 26, 53]
+                fixed_stats = ["mean", "mean","mean","mean"]
+                fixed_lags = 53
+                fixed_params = {'random_state': 15926,'verbose': -1}            
+            else:
+                results = self.find_optimal_configuration(train, test, len(train)//1, 1000,fixed_stats, fixed_windows, fixed_params,fixed_lags)
 
             if results is None or len(results) == 0:
                best_score = 0.0
@@ -419,21 +421,26 @@ class DataPrice:
             print(f"Mejores tamaños de ventana: {best_windows}")
             
             max_possible_window = len(train)-1
-
-            max_windows = max(best_windows)
-            min_windows = min(best_windows)
-            if max_possible_window < max_windows:
-                scale_factor = max_possible_window / max_windows
-                best_windows = [
-                    max(min_windows, int(min_windows * scale_factor)),
-                    max(min_windows, int(best_windows[1] * scale_factor)),
-                    max(min_windows, int(best_windows[2] * scale_factor)),
-                    max_possible_window
-                ]
-                # Si hay repetidos dejar como 1,2,3,4
-                if len(set(best_windows)) < len(best_windows):  # Detecta valores duplicados
-                    best_windows = [1, 2, 3, 4]
+            if max_possible_window < 5:
+                # Si el tamaño máximo de ventana es menor a 5, ajustar las ventanas
+                best_windows = [1, 2, 3]
+                best_stats = ["mean", "mean","mean"]
                 print(f"Ajustando tamaños de ventana a: {best_windows} debido a tamaño limitado de datos")
+            else:
+                max_windows = max(best_windows)
+                min_windows = min(best_windows)
+                if max_possible_window < max_windows:
+                    scale_factor = max_possible_window / max_windows
+                    best_windows = [
+                        max(min_windows, int(min_windows * scale_factor)),
+                        max(min_windows, int(best_windows[1] * scale_factor)),
+                        max(min_windows, int(best_windows[2] * scale_factor)),
+                        max_possible_window
+                    ]
+                    # Si hay repetidos dejar como 1,2,3,4
+                    if len(set(best_windows)) < len(best_windows):  # Detecta valores duplicados
+                        best_windows = [1, 2, 3, 4]
+                        print(f"Ajustando tamaños de ventana a: {best_windows} debido a tamaño limitado de datos")
 
             window_features = RollingFeatures(
                 stats=best_stats,  

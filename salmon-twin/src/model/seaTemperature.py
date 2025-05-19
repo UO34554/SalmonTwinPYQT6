@@ -62,37 +62,46 @@ class DataTemperature:
     def fitTempData(self,tempData,periods):
         data_forecast = None
 
-        # Crea un objeto de la libreria Prophet
-        # Análisis detallado:
-        # Prophet es una potente biblioteca de forecasting desarrollada por Facebook (Meta) que descompone
-        # las series temporales en tres componentes principales: tendencia, estacionalidad y efectos de festividades. 
-        # yearly_seasonality=2 indica que se espera que la estacionalidad anual tenga un efecto significativo en los datos.
-        # Esto es útil para datos que tienen patrones estacionales claros, como las temperaturas del mar, que pueden variar
-        # significativamente a lo largo del año.
-        # En este caso, se ha establecido yearly_seasonality=2 para permitir que el modelo capture patrones estacionales más complejos.
+        try:
+            # Crea un objeto de la libreria Prophet
+            # Análisis detallado:
+            # Prophet es una potente biblioteca de forecasting desarrollada por Facebook (Meta) que descompone
+            # las series temporales en tres componentes principales: tendencia, estacionalidad y efectos de festividades. 
+            # yearly_seasonality=2 indica que se espera que la estacionalidad anual tenga un efecto significativo en los datos.
+            # Esto es útil para datos que tienen patrones estacionales claros, como las temperaturas del mar, que pueden variar
+            # significativamente a lo largo del año.
+            # En este caso, se ha establecido yearly_seasonality=2 para permitir que el modelo capture patrones estacionales más complejos.
         
-        p = Prophet(yearly_seasonality=2)           
+            p = Prophet(yearly_seasonality=2)           
 
-        # Ajusta el modelo a los datos de temperatura
-        p.fit(tempData)
+            # Ajusta el modelo a los datos de temperatura
+            p.fit(tempData)
         
-        # Predice los datos de temperatura para el futuro
-        # Se crea un DataFrame con las fechas futuras para la predicción
-        # periods: número de días a predecir
-        # freq: frecuencia de la predicción (D para días)
-        # include_history: si se incluyen los datos históricos en la predicción
-        future_data = p.make_future_dataframe(periods, freq='D', include_history=False)        
-        data_forecast = p.predict(future_data)
+            # Predice los datos de temperatura para el futuro
+            # Se crea un DataFrame con las fechas futuras para la predicción
+            # periods: número de días a predecir
+            # freq: frecuencia de la predicción (D para días)
+            # include_history: si se incluyen los datos históricos en la predicción
+            future_data = p.make_future_dataframe(periods, freq='D', include_history=False)        
+            data_forecast = p.predict(future_data)
 
-        #--- Debug ---
-        # Plot the forecast
-        #fig_data_forecast = p.plot(data_forecast)
-        # Add the changepoints to the forecast plot
-        #add_changepoints_to_plot(fig_data_forecast.gca(), p, data_forecast)
-        # Plot the forecast components
-        #fig_data_forecast_components = p.plot_components(data_forecast)
-        #return data_forecast,fig_data_forecast,fig_data_forecast_components
-        #--- End Debug ---
+            # Limita la previsión con un máximo de 30ºC y un mínimo de 0ºC
+            data_forecast['yhat'] = data_forecast['yhat'].clip(lower=0, upper=30)
+            data_forecast['yhat_lower'] = data_forecast['yhat_lower'].clip(lower=0, upper=30)
+            data_forecast['yhat_upper'] = data_forecast['yhat_upper'].clip(lower=0, upper=30)
+
+            #--- Debug ---
+            # Plot the forecast
+            #fig_data_forecast = p.plot(data_forecast)
+            # Add the changepoints to the forecast plot
+            #add_changepoints_to_plot(fig_data_forecast.gca(), p, data_forecast)
+            # Plot the forecast components
+            #fig_data_forecast_components = p.plot_components(data_forecast)
+            #return data_forecast,fig_data_forecast,fig_data_forecast_components
+            #--- End Debug ---
+        except ValueError as e:
+            self.lastError=("Error:" + e.__str__())
+            return None
 
         return data_forecast
 
