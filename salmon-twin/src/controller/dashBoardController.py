@@ -323,7 +323,7 @@ class dashBoardController:
         max_ticks_by_width = max(3, int(plot_width / 130))
     
         # Filtrar los índices visibles dentro del rango actual
-        visible_indices = np.where((self._temp_x_values >= min_x) & (self._temp_x_values <= max_x))[0]
+        visible_indices = np.where((self._price_x_values >= min_x) & (self._price_x_values <= max_x))[0]
     
         # Determinar si estamos en un nivel de zoom grande
         is_high_zoom = len(visible_indices) < 5 and x_range > 86400  # Al menos un día y pocos puntos visibles
@@ -351,9 +351,9 @@ class dashBoardController:
         
             # Usar formato de fecha más compacto cuando hay poco espacio
             if plot_width < 500:
-                ticks = [(self._temp_x_values[i], self._format_date_compact(self._temp_x_values[i])) for i in tick_indices]
+                ticks = [(self._price_x_values[i], self._format_date_compact(self._price_x_values[i])) for i in tick_indices]
             else:
-                ticks = [(self._temp_x_values[i], self._format_date(self._temp_x_values[i])) for i in tick_indices]
+                ticks = [(self._price_x_values[i], self._format_date(self._price_x_values[i])) for i in tick_indices]
         else:
             # No hay puntos visibles
             return
@@ -491,6 +491,57 @@ class dashBoardController:
         # Agregar el widget al layout
         self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
 
+    def _update_growth_axis_ticks(self,range_vals):
+        # Obtener el rango visible actual
+        min_x, max_x = range_vals[0]
+        x_range = max_x - min_x
+
+        # Obtener el ancho del gráfico en píxeles
+        plot_width = self._growth_widget.width()
+
+        # Calcular cuántos ticks pueden caber basado en el ancho disponible
+        # Asumiendo que cada label necesita aproximadamente 150px para ser legible
+        max_ticks_by_width = max(3, int(plot_width / 150))
+
+        # Filtrar los índices visibles dentro del rango actual
+        visible_indices = np.where((self._growth_x_values >= min_x) & (self._growth_x_values <= max_x))[0]
+    
+        # Determinar si estamos en un nivel de zoom grande
+        is_high_zoom = len(visible_indices) < 5 and x_range > 86400  # Al menos un día y pocos puntos visibles
+
+        if is_high_zoom and x_range > 0:
+            # Caso de zoom elevado: generar ticks interpolados a intervalos regulares
+            optimal_tick_count = min(max_ticks_by_width, 12)
+        
+            # Generar timestamps interpolados uniformemente distribuidos
+            interpolated_timestamps = np.linspace(min_x, max_x, optimal_tick_count)
+        
+            # Crear los ticks con las fechas formateadas
+            if plot_width < 500:
+                ticks = [(ts, self._format_date_compact(ts)) for ts in interpolated_timestamps]
+            else:
+                ticks = [(ts, self._format_date(ts)) for ts in interpolated_timestamps]
+    
+        elif len(visible_indices) > 0:
+            # Caso normal: usar los puntos de datos existentes
+            time_based_ticks = min(10, max(4, int(x_range / (86400 * 7))))
+            num_ticks = min(time_based_ticks, max_ticks_by_width)
+        
+            step = max(1, len(visible_indices) // num_ticks)
+            tick_indices = visible_indices[::step]
+        
+            # Usar formato de fecha más compacto cuando hay poco espacio
+            if plot_width < 500:
+                ticks = [(self._growth_x_values[i], self._format_date_compact(self._growth_x_values[i])) for i in tick_indices]
+            else:
+                ticks = [(self._growth_x_values[i], self._format_date(self._growth_x_values[i])) for i in tick_indices]
+        else:
+            # No hay puntos visibles
+            return
+        
+        # Actualizar los ticks del eje X
+        self._growth_widget.getAxis('bottom').setTicks([ticks])
+
     # Dibujar el modelo de crecimiento de la balsa
     def _draw_growth_model(self,pos_i,pos_j,raft):        
         # Crear un widget de gráfico de PyQtGraph
@@ -564,11 +615,20 @@ class dashBoardController:
                 # Personalizar los ticks del eje X
                 axis = plot_widget.getAxis('bottom')                
                 axis.setLabel("", units="")
+
+                # Guardar referencia al widget y a los valores de X para actualizaciones posteriores
+                self._growth_widget = plot_widget
+                self._growth_x_values = np.concatenate((x, xf))
+
+                plot_widget.getViewBox().sigRangeChanged.connect(lambda vb, range_vals: self._update_growth_axis_ticks(range_vals))
+
+                # Establecer los ticks iniciales
+                self._update_growth_axis_ticks([[min_x, max_x], [min_y, max_y]])
             
                 # Graficar los datos de biomasa, crecimiento individual y número de peces
                 plot_widget.plot(x, y_biomass, pen=pg.mkPen(color='b', width=2), name="Biomasa historica")
                 plot_widget.plot(xf, y_biomass_f, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Biomasa Predicción")
-                plot_widget.plot(x, y_number, pen=pg.mkPen(color='darkblue', width=2), name="Nº de Peces histórico")
+                plot_widget.plot(x, y_number, pen=pg.mkPen(color='darkred', width=2), name="Nº de Peces histórico")
                 plot_widget.plot(xf, y_number_f, pen=pg.mkPen(color='darkred', width=2, style=Qt.DashLine), name="Nº de Peces Predicción")
 
                 # Añadir línea vertical para la fecha actual
@@ -1177,8 +1237,13 @@ class dashBoardController:
                     label.setText(texto_original, color='k')
 
                 # Ajustar los rangos de los ejes de manera dinámica
-                plot_widget.setXRange(x.min(), x.max(), padding=0.1)
-                plot_widget.setYRange(y.min(), y.max(), padding=0.1)
+                min_x = min(x.min(), self.x_forecast.min())
+                max_x = max(x.max(), self.x_forecast.max())
+                min_y = min(y.min(), self.y_forecast.min())
+                max_y = max(y.max(), self.y_forecast.max())
+                
+                plot_widget.setXRange(min_x, max_x, padding=0.1)
+                plot_widget.setYRange(min_y, max_y, padding=0.1)
 
                 '''
                 # Conectar el evento de movimiento del ratón
