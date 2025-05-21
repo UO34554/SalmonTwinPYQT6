@@ -307,7 +307,7 @@ class dashBoardController:
         self._clear_dashboard()        
         # Dibujar la balsa
         self._draw_infopanel(0,0,raft)
-        self._draw_schematic(0,1)
+        self._draw_schematic(0,1,raft)
         self._draw_graph_temperature(1,0,raft)
         self._draw_growth_model(1,1,raft)
         self._draw_price(2,0,raft)
@@ -878,14 +878,58 @@ class dashBoardController:
             tail_item.rotate(final_yaw_to_use, 0, 0, 1, local=False)    # Misma orientación que el cuerpo
             tail_item.rotate(pitch, 0, 1, 0, local=False)
             tail_item.translate(new_x, new_y, new_z, local=False)
-    # --- Fin Grafico 3d ---   
+    # --- Fin Grafico 3d ---
+    # Calcular la fecha óptima de cosecha
+    def _calculate_optimal_harvest_date(self, raft):
+        try:            
+            # Buscar el punto donde se maximiza biomasa*precio de fecha menor
+        
+            # Si hay datos de predicción tanto de crecimiento como de precio
+            growth_forecast = raft.getGrowthForecastData()
+            price_forecast = raft.getPriceForecastData()
+        
+            if growth_forecast is None or price_forecast is None or growth_forecast.empty or price_forecast.empty:
+                return None
+        
+            # Combinar datos de biomasa y precio por fecha
+            growth_forecast['ds'] = pd.to_datetime(growth_forecast['ds'])
+            price_forecast['ds'] = pd.to_datetime(price_forecast['ds'])
+        
+            # Creamos un DataFrame común para las fechas
+            merged_data = pd.merge(
+                growth_forecast[['ds', 'biomass', 'number_fishes']], 
+                price_forecast[['ds', 'y']], 
+                on='ds', 
+                how='inner'
+            )
+        
+            if merged_data.empty:
+                return None
+        
+            # Calcular el valor total para cada fecha (biomasa * precio)
+            merged_data['total_value'] = merged_data['biomass'] * merged_data['y']
+        
+            # Encontrar la fecha de máximo valor
+            max_value_row = merged_data.loc[merged_data['total_value'].idxmax()]
+            return max_value_row['ds'].date(),max_value_row['biomass'],max_value_row['y'],max_value_row['number_fishes'],max_value_row['total_value']
+
+        except Exception as e:
+            print(f"Error calculando fecha óptima: {str(e)}")
+            return None       
 
     # --- Grafico 2d ---
-    def _draw_schematic(self,pos_i,pos_j):
+    def _draw_schematic(self,pos_i,pos_j,raft):
+        # Contenedor principal
+        main_widget = QWidget()
+        grid_layout = QGridLayout(main_widget)
+        grid_layout.setSpacing(10)  # Espacio entre elementos del grid
+        # Espaciador para que los widgets no se estiren demasiado
+        grid_layout.setRowStretch(4, 1)
         # Crear un QGraphicsView para mostrar la información de la balsa
         view = QGraphicsView()
-        scene = QGraphicsScene()       
-
+        view.setMaximumWidth(300)
+        view.setMinimumHeight(300)
+        scene = QGraphicsScene()
         # Aplicar un estilo con fondo semitransparente
         view.setStyleSheet("""
             QGraphicsView {
@@ -893,25 +937,25 @@ class dashBoardController:
                 border: 1px solid black; /* Borde negro opcional */
             }
         """)
-
         view.setScene(scene)
+        #grid_layout.addWidget(view, 0, 0)
 
         # Configurar un tamaño inicial para la escena
-        scene_size = self._view.centralwidget.height() // 3
-        cage_radius = scene_size / 3
+        scene_size = 280
+        cage_radius = scene_size / 4
 
         # Definir el área de la escena
         scene.setSceneRect(-scene_size/2, -scene_size/2, scene_size, scene_size)        
 
         # Colores        
-        net_color = QColor(100, 100, 255, 150)  # Azul semitransparente
-        float_color = QColor(200, 200, 200)      # Gris claro
-        support_color = QColor(150, 150, 150)    # Gris oscuro
+        net_color = QColor(100, 100, 255, 150)        # Azul semitransparente
+        float_color = QColor(200, 200, 200)           # Gris claro
+        support_color = QColor(150, 150, 150)         # Gris oscuro        
 
         # Pluma y pincel comunes
         pen = QPen(Qt.black)
         net_brush = QBrush(net_color)
-        float_brush = QBrush(float_color)        
+        float_brush = QBrush(float_color)             
 
         # 1. Estructura Flotante (Círculo principal)
         floating_structure = scene.addEllipse(-cage_radius, -cage_radius,
@@ -948,8 +992,33 @@ class dashBoardController:
             anchor = scene.addRect(x - anchor_size / 2, y - anchor_size / 2,
                                          anchor_size, anchor_size, pen, QBrush(Qt.blue))
             anchor.setToolTip(cfg.DASHBOARD_GRAPH_ANCHOR_MSG)
+
+        # 5. Añadir cajas informativas con valor esperado y fecha óptima
+        # Intentar calcular los valores
+        date,biomass,price,nFishes,total = self._calculate_optimal_harvest_date(raft)
+        optimal_date = date.strftime("%d/%m/%Y") if date else "N/A"
+        expected_value = total if total else 0
+    
+        # Cajas de valor esperado
+        # Añadir labels en otras celdas
+        label1 = QLabel("Valor esperado:" + "{0:.2f} EUR".format(expected_value))
+        label2 = QLabel("Fecha óptima de recogida:" + optimal_date)
+        label_style_small = """
+            QLabel {
+                font-size: 14px; /* Tamaño de la letra */
+                background-color: rgba(200, 200, 200, 150); /* Fondo semitransparente */
+                color: black; /* Color del texto */
+                border: 1px solid gray; /* Opcional: borde */
+                padding: 1px; /* Margen interno */
+            }
+        """
+        label1.setStyleSheet(label_style_small)
+        label2.setStyleSheet(label_style_small)
+        grid_layout.addWidget(label1, 0, 0, 1, 2)
+        grid_layout.addWidget(label2, 1, 0, 1, 3)
+        grid_layout.addWidget(view, 0, 2, 1, 1)        
         
-        self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
+        self._view.centralwidget.layout().addWidget(main_widget,pos_i,pos_j)
     # --- Fin Grafico 2d ---
 
     def _update_forescast_date(self, perCentage, raft, lforescastDate, lforescastFishNumber, lforescastBiomass, lforescastPrice, lforescastTotalValue):
