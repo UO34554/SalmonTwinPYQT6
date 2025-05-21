@@ -655,14 +655,15 @@ class dashBoardController:
         self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
 
     # --- Grafico 3d ---   
-    def _draw_schematic_3d(self,pos_i,pos_j,raft):
+    def _draw_schematic_3d(self,pos_i,pos_j,raft):        
         # Crear un widget 3D
         view = gl.GLViewWidget()
-        view.setBackgroundColor((55, 43, 38, 0))
+        view.setBackgroundColor(pg.mkColor(0, 0, 80, 255))
         # Configurar el rango inicial de la cámara
-        view.setCameraPosition(distance=50)
+        view.setCameraPosition(distance=40, elevation=20, azimuth=45)
         # Agregar una cuadrícula para referencia
         grid = gl.GLGridItem()
+        grid.setColor((150,150,150,255))
         grid.scale(1, 1, 1)
         view.addItem(grid)
         # Dibujar la estructura circular de la balsa
@@ -673,7 +674,7 @@ class dashBoardController:
         self._create_flotadores(view)
         # Dibujar peces dentro de la red
         self._create_fish(view,raft)
-        # Mostrar el widget 3D
+        # Mostrar el widget 3D        
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
 
     # Crear la estructura circular de la balsa
@@ -721,7 +722,7 @@ class dashBoardController:
             x = radius * np.cos(angle)
             y = radius * np.sin(angle)
             z = 0
-            sphere = gl.GLScatterPlotItem(pos=np.array([[x, y, z]]), size=20, color=(0, 1, 0, 1))
+            sphere = gl.GLScatterPlotItem(pos=np.array([[x, y, z]]), size=20, color=(0.1, 0.6, 0.1, 1))
             view.addItem(sphere)    
 
     # Crear peces (esferas pequeñas dentro de la red)
@@ -729,16 +730,45 @@ class dashBoardController:
         # Crear peces (esferas pequeñas dentro de la red)
         self.fish_items = []
         self.fish_positions = []
+        self.fish_orientations = []
         # Número de peces
-        self.fish_count = int(raft.getCurrentNumberFishes())
+        self.fish_count = int(raft.getCurrentNumberFishes())        
+        # Cuerpo de pez
+        body_mesh_data = gl.MeshData.sphere(rows=8, cols=8, radius=0.2)
+        # La cola del pez
+        tail_mesh_data = gl.MeshData.sphere(rows=6, cols=6, radius=0.2)
+        body_color = (0.9, 0.5, 0.1, 1)  # Naranja/amarillo opaco para el cuerpo
+        tail_color = (0.7, 0.3, 0.05, 1) # Marrón opaco para la cola
+        # Parámetros de forma
+        body_scale_x = 2.5
+        body_radius = 0.2
+        tail_offset_x = - (body_radius * body_scale_x * 0.55) - 0.1
         for _ in range(self.fish_count):
             x = random.uniform(-7, 7)
             y = random.uniform(-7, 7)
-            z = random.uniform(-5, 0)
-            fish = gl.GLScatterPlotItem(pos=np.array([[x, y, z]]), size=5, color=(1, 1, 0, 1))
-            self.fish_items.append(fish)
+            z = random.uniform(-5, -0.2)
+            body_item = gl.GLMeshItem(meshdata=body_mesh_data, smooth=True, shader='shaded', color=body_color)
+            tail_item = gl.GLMeshItem(meshdata=tail_mesh_data, smooth=True, shader='shaded', color=tail_color)
+            # Orientación inicial aleatoria
+            yaw = random.uniform(0, 360)    # Rotación alrededor del eje Z (vertical)            
+            pitch = random.uniform(-15, 15) # Inclinación ligera hacia arriba/abajo            
+
+            body_item.resetTransform()
+            body_item.scale(body_scale_x, 1.0, 1.0)
+            body_item.rotate(yaw, 0, 0, 1, local=False)
+            body_item.rotate(pitch, 0, 1, 0, local=False) # Rotar pitch sobre el eje Y local (ya afectado por yaw)
+            body_item.translate(x, y, z, local=False)
+            tail_item.resetTransform()
+            tail_item.scale(1.2, 0.1, 0.8)
+            tail_item.translate(tail_offset_x, 0, 0, local=True) # Posicionar detrás del cuerpo (en el eje X local del cuerpo)
+            tail_item.rotate(yaw, 0, 0, 1, local=False)    # Aplicar la misma orientación que el cuerpo
+            tail_item.rotate(pitch, 0, 1, 0, local=False)
+            tail_item.translate(x, y, z, local=False)
+            self.fish_items.append({'body': body_item, 'tail': tail_item})
             self.fish_positions.append([x, y, z])
-            view.addItem(fish)            
+            self.fish_orientations.append({'yaw': yaw, 'pitch': pitch, 'body_scale_x': body_scale_x, 'tail_offset_x': tail_offset_x})
+            view.addItem(body_item)
+            view.addItem(tail_item)                       
         # Configurar un temporizador para animar los peces
         self.timer.stop()        
         # Desconectar primero si ya estaba conectado
@@ -755,32 +785,71 @@ class dashBoardController:
     # Actualizar la posición de los peces
     def _update_fish_positions(self):
          # Exit if fish items or positions are not initialized.
-        if not hasattr(self, 'fish_items') or not hasattr(self, 'fish_positions'):
+        if not hasattr(self, 'fish_items') or not hasattr(self, 'fish_positions') or not hasattr(self, 'fish_orientations'):
             return
+        
+        swim_speed = 0.1
+        net_radius = 8
+        net_depth_max = -0.2
+        net_depth_min = -5.0
 
         for i, fish in enumerate(self.fish_items):
+            # Obtener el cuerpo y la cola del pez
+            body_item = fish['body']
+            tail_item = fish['tail']
             # Obtener la posición actual
             current_pos = self.fish_positions[i]
+            orientation = self.fish_orientations[i]
             x, y, z = current_pos
+            previous_yaw = orientation['yaw']
+            pitch = orientation['pitch']
+            body_scale_x = orientation['body_scale_x']
+            tail_offset_x = orientation['tail_offset_x']
 
             # Calcular pequeños desplazamientos (deltas)
-            delta_x = random.uniform(-0.1, 0.1)  # Movimiento suave en X
-            delta_y = random.uniform(-0.1, 0.1)  # Movimiento suave en Y
-            delta_z = random.uniform(-0.1, 0.1)  # Movimiento suave en Z
+            delta_turn_angle = random.uniform(0, 10)
+            yaw_for_this_frame = (previous_yaw + delta_turn_angle) % 360
+            delta_pitch_angle = random.uniform(0, 1)
+            pitch_for_this_frame = (pitch + delta_pitch_angle) % 360            
+            yaw_rad_for_movement = np.radians(yaw_for_this_frame)
+            pitch_rad_for_movement = np.radians(pitch_for_this_frame)
+            delta_x_pos = swim_speed * np.cos(yaw_rad_for_movement)
+            delta_y_pos = swim_speed * np.sin(yaw_rad_for_movement)
+            delta_z_pos = swim_speed * np.sin(pitch_rad_for_movement)
 
             # Limitar posiciones dentro de los límites de la red
-            new_x = np.clip(x + delta_x, -7, 7)
-            new_y = np.clip(y + delta_y, -7, 7)
-            new_z = np.clip(z + delta_z, -5, 0)
+            new_x = x + delta_x_pos
+            new_y = y + delta_y_pos
+            new_z = z + delta_z_pos
 
-            # Actualizar la posición en la lista
-            self.fish_positions[i] = [new_x, new_y, new_z]
+            final_yaw_to_use = yaw_for_this_frame
+            if np.sqrt(new_x**2 + new_y**2) >= net_radius:
+                # Si golpea el borde, invertir el componente de velocidad que lo llevó allí
+                # y/o cambiar drásticamente el yaw
+                new_x = np.clip(new_x, -net_radius, net_radius)
+                new_y = np.clip(new_y, -net_radius, net_radius)
+                final_yaw_to_use = (yaw_for_this_frame + random.uniform(120, 240)) % 360 # Girar significativamente                
+
+            if new_z > net_depth_max or new_z < net_depth_min:
+                new_z = np.clip(new_z, net_depth_min, net_depth_max)
+
+            orientation['yaw'] = final_yaw_to_use
 
             # Actualizar la posición del pez
-            if fish.visible():
-                fish.setData(pos=np.array([[new_x, new_y, new_z]]))
-            else:
-                print(cfg.DASHBOARD_FISH_3D_ERROR.format(i))
+            self.fish_positions[i] = [new_x, new_y, new_z]            
+            # Actualizar transformación del cuerpo
+            body_item.resetTransform()
+            body_item.scale(body_scale_x, 1.0, 1.0)
+            body_item.rotate(final_yaw_to_use, 0, 0, 1, local=False)
+            body_item.rotate(pitch, 0, 1, 0, local=False)
+            body_item.translate(new_x, new_y, new_z, local=False)
+            # Actualizar transformación de la cola
+            tail_item.resetTransform()
+            tail_item.scale(1.2, 0.1, 0.8)           
+            tail_item.translate(tail_offset_x, 0, 0, local=True) # Offset local respecto al cuerpo
+            tail_item.rotate(final_yaw_to_use, 0, 0, 1, local=False)    # Misma orientación que el cuerpo
+            tail_item.rotate(pitch, 0, 1, 0, local=False)
+            tail_item.translate(new_x, new_y, new_z, local=False)
     # --- Fin Grafico 3d ---   
 
     # --- Grafico 2d ---
