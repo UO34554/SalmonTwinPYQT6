@@ -817,18 +817,46 @@ class dashBoardController:
             delta_y_pos = swim_speed * np.sin(yaw_rad_for_movement)
             delta_z_pos = swim_speed * np.sin(pitch_rad_for_movement)
 
-            # Limitar posiciones dentro de los límites de la red
+            # --- Lógica de movimiento vertical (Z) mejorada ---
+            z_range = net_depth_max - net_depth_min
+            edge_zone_percentage = 0.15 # Porcentaje del rango Z considerado "cerca del borde"
+            edge_zone_threshold = z_range * edge_zone_percentage
+            
+            min_z_movement_away = 0.01  # Mínimo movimiento para alejarse del borde
+            max_z_movement_away = 0.03  # Máximo movimiento para alejarse del borde
+            general_z_movement = 0.02   # Rango de movimiento general en Z
+
+            if z <= net_depth_min + edge_zone_threshold:
+                # Cerca del fondo, tender a moverse hacia arriba
+                delta_z_pos = random.uniform(min_z_movement_away, max_z_movement_away)
+            elif z >= net_depth_max - edge_zone_threshold:
+                # Cerca de la superficie, tender a moverse hacia abajo
+                delta_z_pos = random.uniform(-max_z_movement_away, -min_z_movement_away)
+            else:
+                # En la zona media, movimiento aleatorio normal
+                delta_z_pos = random.uniform(-general_z_movement, general_z_movement)
+
+            # Calcular nuevas posiciones
             new_x = x + delta_x_pos
             new_y = y + delta_y_pos
             new_z = z + delta_z_pos
 
+             # Limitar posiciones dentro de los límites de la red
             final_yaw_to_use = yaw_for_this_frame
             if np.sqrt(new_x**2 + new_y**2) >= net_radius:
                 # Si golpea el borde, invertir el componente de velocidad que lo llevó allí
                 # y/o cambiar drásticamente el yaw
                 new_x = np.clip(new_x, -net_radius, net_radius)
                 new_y = np.clip(new_y, -net_radius, net_radius)
-                final_yaw_to_use = (yaw_for_this_frame + random.uniform(120, 240)) % 360 # Girar significativamente                
+                final_yaw_to_use = (yaw_for_this_frame + 30) % 360 # Girar 30 grados
+                push_strength = 0.1
+                dist_from_origin = np.sqrt(new_x**2 + new_y**2) # Debería ser net_radius aquí
+                if dist_from_origin > 0: # Evitar división por cero
+                    direction_to_center_x = -new_x / dist_from_origin
+                    direction_to_center_y = -new_y / dist_from_origin                    
+                    new_x += direction_to_center_x * push_strength
+                    new_y += direction_to_center_y * push_strength
+
 
             if new_z > net_depth_max or new_z < net_depth_min:
                 new_z = np.clip(new_z, net_depth_min, net_depth_max)
