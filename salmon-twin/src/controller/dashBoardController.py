@@ -890,28 +890,74 @@ class dashBoardController:
         
             if growth_forecast is None or price_forecast is None or growth_forecast.empty or price_forecast.empty:
                 return None
-        
-            # Combinar datos de biomasa y precio por fecha
+            
+            # Convertir fechas a datetime
             growth_forecast['ds'] = pd.to_datetime(growth_forecast['ds'])
             price_forecast['ds'] = pd.to_datetime(price_forecast['ds'])
         
-            # Creamos un DataFrame común para las fechas
-            merged_data = pd.merge(
-                growth_forecast[['ds', 'biomass', 'number_fishes']], 
-                price_forecast[['ds', 'y']], 
-                on='ds', 
-                how='inner'
+            # 1. ENCONTRAR MÁXIMOS LOCALES EN LA CURVA DE BIOMASA
+            # Un punto es un máximo local si su valor es mayor que sus puntos adyacentes
+            growth_forecast = growth_forecast.copy()
+            growth_forecast['is_max'] = False
+        
+            # Para cada punto (excepto el primero y el último)
+            for i in range(1, len(growth_forecast) - 1):
+                if (growth_forecast['biomass'].iloc[i] > growth_forecast['biomass'].iloc[i-1] and 
+                    growth_forecast['biomass'].iloc[i] > growth_forecast['biomass'].iloc[i+1]):
+                    growth_forecast.iloc[i, growth_forecast.columns.get_loc('is_max')] = True
+        
+            # El último punto también puede ser un máximo
+            if len(growth_forecast) > 1 and growth_forecast['biomass'].iloc[-1] > growth_forecast['biomass'].iloc[-2]:
+                growth_forecast.iloc[-1, growth_forecast.columns.get_loc('is_max')] = True
+        
+            # Si no hay máximos locales, usar el punto de máxima biomasa
+            if not growth_forecast['is_max'].any():
+                max_biomass_idx = growth_forecast['biomass'].idxmax()
+                growth_forecast.loc[max_biomass_idx, 'is_max'] = True
+        
+            # Filtrar solo los máximos locales
+            max_points = growth_forecast[growth_forecast['is_max']].copy()
+        
+            # 2. BUSCAR PRECIOS CORRESPONDIENTES A ESTOS MÁXIMOS
+            # Convertir fechas a timestamps numéricos para la interpolación
+            max_points_timestamps = max_points['ds'].map(pd.Timestamp.timestamp).values
+            price_forecast_timestamps = price_forecast['ds'].map(pd.Timestamp.timestamp).values
+
+            # Ordenar los arrays para interpolación (np.interp requiere que xp esté ordenado)
+            if not np.all(np.diff(price_forecast_timestamps) >= 0):
+                sort_idx = np.argsort(price_forecast_timestamps)
+                price_forecast_timestamps = price_forecast_timestamps[sort_idx]
+                price_values = price_forecast['y'].values[sort_idx]
+            else:
+                price_values = price_forecast['y'].values
+            
+            # Usar np.interp para interpolación lineal simple usando .loc para evitar warnings
+            max_points.loc[:, 'price'] = np.interp(
+                max_points_timestamps,         # x: puntos donde interpolar
+                price_forecast_timestamps,     # xp: puntos x conocidos 
+                price_values                   # fp: valores y conocidos
             )
+
+            # 3. CALCULAR BIOMASA * PRECIO
+            max_points.loc[:, 'biomass_price'] = max_points['biomass'] * max_points['price']
+
+            # 4. BUSCAR EL MÁXIMO DE BIOMASA * PRECIO
+            max_biomass_price_idx = max_points['biomass_price'].idxmax()
+            # Obtener la fecha correspondiente al máximo de biomasa * precio
+            optimal_date = max_points.loc[max_biomass_price_idx, 'ds']
         
-            if merged_data.empty:
-                return None
+            # Obtener la biomasa y precio en esa fecha
+            biomass = max_points.loc[max_biomass_price_idx, 'biomass']
+            price = max_points.loc[max_biomass_price_idx, 'price']
         
-            # Calcular el valor total para cada fecha (biomasa * precio)
-            merged_data['total_value'] = merged_data['biomass'] * merged_data['y']
+            # Buscar el número de peces correspondiente a esa fecha
+            # Encontrar la fecha más cercana en growth_forecast
+            closest_idx = growth_forecast['ds'].sub(optimal_date).abs().idxmin()
+            nFishes = growth_forecast.loc[closest_idx, 'number_fishes']
         
-            # Encontrar la fecha de máximo valor
-            max_value_row = merged_data.loc[merged_data['total_value'].idxmax()]
-            return max_value_row['ds'].date(),max_value_row['biomass'],max_value_row['y'],max_value_row['number_fishes'],max_value_row['total_value']
+            # Calcular el valor total
+            total = biomass * price
+            return optimal_date, biomass, price, nFishes, total
 
         except Exception as e:
             print(f"Error calculando fecha óptima: {str(e)}")
