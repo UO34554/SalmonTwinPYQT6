@@ -983,38 +983,30 @@ class dashBoardController:
                 border: 1px solid black; /* Borde negro opcional */
             }
         """)
-        view.setScene(scene)
-        #grid_layout.addWidget(view, 0, 0)
-
+        view.setScene(scene)        
         # Configurar un tamaño inicial para la escena
         scene_size = 280
         cage_radius = scene_size / 4
-
         # Definir el área de la escena
-        scene.setSceneRect(-scene_size/2, -scene_size/2, scene_size, scene_size)        
-
+        scene.setSceneRect(-scene_size/2, -scene_size/2, scene_size, scene_size)
         # Colores        
         net_color = QColor(100, 100, 255, 150)        # Azul semitransparente
         float_color = QColor(200, 200, 200)           # Gris claro
-        support_color = QColor(150, 150, 150)         # Gris oscuro        
-
+        support_color = QColor(150, 150, 150)         # Gris oscuro
         # Pluma y pincel comunes
         pen = QPen(Qt.black)
         net_brush = QBrush(net_color)
-        float_brush = QBrush(float_color)             
-
+        float_brush = QBrush(float_color)
         # 1. Estructura Flotante (Círculo principal)
         floating_structure = scene.addEllipse(-cage_radius, -cage_radius,
                                                   2 * cage_radius, 2 * cage_radius,
                                                   pen, float_brush)
         floating_structure.setToolTip(cfg.DASHBOARD_GRAPH_MAINSTRUCTURE_MSG)
-
         # 2. Red de la Jaula
         net = scene.addEllipse(-cage_radius + 10, -cage_radius + 10,
                                      2 * cage_radius - 20, 2 * cage_radius - 20,
                                      pen, net_brush)
         net.setToolTip(cfg.DASHBOARD_GRAPH_NET_MSG)
-
         # 3. Soportes (Ejemplo: líneas radiales)
         num_supports = 8
         support_length = cage_radius + 30
@@ -1027,7 +1019,6 @@ class dashBoardController:
             y2 = support_length * math.sin(math.radians(angle))
             support = scene.addLine(x1, y1, x2, y2, QPen(support_color, 2))
             support.setToolTip(cfg.DASHBOARD_GRAPH_PILLARS_MSG)
-
         # 4. Anclajes (Ejemplo: pequeños rectángulos en los extremos de los soportes)
         anchor_size = 10
         for i in range(num_supports):
@@ -1038,13 +1029,18 @@ class dashBoardController:
             anchor = scene.addRect(x - anchor_size / 2, y - anchor_size / 2,
                                          anchor_size, anchor_size, pen, QBrush(Qt.blue))
             anchor.setToolTip(cfg.DASHBOARD_GRAPH_ANCHOR_MSG)
-
         # 5. Añadir cajas informativas con valor esperado y fecha óptima
         # Intentar calcular los valores
-        date,biomass,price,nFishes,total = self._calculate_optimal_harvest_date(raft)
-        optimal_date = date.strftime("%d/%m/%Y") if date else "N/A"
-        expected_value = total if total else 0
-    
+        result = self._calculate_optimal_harvest_date(raft)
+        if result is not None:
+            date, biomass, price, nFishes, total = result
+            optimal_date = date.strftime("%d/%m/%Y") if hasattr(date, 'strftime') else "N/A"
+            expected_value = total if total is not None else 0
+        else:
+            # Valores predeterminados cuando no se puede calcular
+            optimal_date = "N/A"
+            expected_value = 0
+        
         # Cajas de valor esperado
         # Añadir labels en otras celdas
         label1 = QLabel("Valor esperado:" + "{0:.2f} EUR".format(expected_value))
@@ -1062,7 +1058,7 @@ class dashBoardController:
         label2.setStyleSheet(label_style_small)
         grid_layout.addWidget(label1, 0, 0, 1, 2)
         grid_layout.addWidget(label2, 1, 0, 1, 3)
-        grid_layout.addWidget(view, 0, 2, 1, 1)        
+        grid_layout.addWidget(view, 0, 2, 1, 1)
         
         self._view.centralwidget.layout().addWidget(main_widget,pos_i,pos_j)
     # --- Fin Grafico 2d ---
