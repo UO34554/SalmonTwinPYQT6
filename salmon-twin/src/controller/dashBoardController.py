@@ -2,9 +2,9 @@
 @author: Pedro López Treitiño
 Gestor unificado de balsas marinas para el sistema Salmon Twin
 """
-from PySide6.QtWidgets import QLabel, QDialog, QFileDialog, QGraphicsView, QGraphicsScene, QWidget, QVBoxLayout, QHBoxLayout, QSlider, QGridLayout
+from PySide6.QtWidgets import QLabel, QDialog, QFileDialog, QGraphicsView, QGraphicsScene, QWidget, QSlider, QGridLayout
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPen, QBrush, QColor
+from PySide6.QtGui import QPen, QBrush, QColor, QFont
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 import numpy as np
@@ -12,12 +12,12 @@ import pandas as pd
 import random
 import config as cfg
 import locale
+import math
 from model.seaTemperature import DataTemperature
 from model.growthModel import GrowthModel
 from model.priceModel import DataPrice
 from utility.utility import OptionsDialog, auxTools, DataLoader
 from datetime import datetime, timedelta
-
 
 # Controlodador de la vista de dashboard
 class dashBoardController:
@@ -964,29 +964,7 @@ class dashBoardController:
             return None       
 
     # --- Grafico 2d ---
-    def _draw_schematic(self,pos_i,pos_j,raft):
-        # Contenedor principal
-        main_widget = QWidget()
-        grid_layout = QGridLayout(main_widget)
-        grid_layout.setSpacing(10)  # Espacio entre elementos del grid
-        # Espaciador para que los widgets no se estiren demasiado
-        grid_layout.setRowStretch(4, 1)
-        # Crear un QGraphicsView para mostrar la información de la balsa
-        view = QGraphicsView()
-        view.setMaximumWidth(300)
-        view.setMinimumHeight(300)
-        scene = QGraphicsScene()
-        # Aplicar un estilo con fondo semitransparente
-        view.setStyleSheet("""
-            QGraphicsView {
-                background-color: rgba(200, 200, 200, 150); /* Gris claro semitransparente */
-                border: 1px solid black; /* Borde negro opcional */
-            }
-        """)
-        view.setScene(scene)        
-        # Configurar un tamaño inicial para la escena
-        scene_size = 280
-        cage_radius = scene_size / 4
+    def _draw_raft_2D(self, scene, scene_size, cage_radius):
         # Definir el área de la escena
         scene.setSceneRect(-scene_size/2, -scene_size/2, scene_size, scene_size)
         # Colores        
@@ -996,39 +974,100 @@ class dashBoardController:
         # Pluma y pincel comunes
         pen = QPen(Qt.black)
         net_brush = QBrush(net_color)
-        float_brush = QBrush(float_color)
+        float_brush = QBrush(float_color)        
+
         # 1. Estructura Flotante (Círculo principal)
-        floating_structure = scene.addEllipse(-cage_radius, -cage_radius,
-                                                  2 * cage_radius, 2 * cage_radius,
+        floating_structure = scene.addEllipse(-cage_radius*3, -cage_radius*3,
+                                               cage_radius*4,  cage_radius*4,
                                                   pen, float_brush)
         floating_structure.setToolTip(cfg.DASHBOARD_GRAPH_MAINSTRUCTURE_MSG)
         # 2. Red de la Jaula
-        net = scene.addEllipse(-cage_radius + 10, -cage_radius + 10,
-                                     2 * cage_radius - 20, 2 * cage_radius - 20,
+        net = scene.addEllipse(-cage_radius*3 + 5, -cage_radius*3 + 5,
+                                     4 * cage_radius - 10, 4 * cage_radius - 10,
                                      pen, net_brush)
         net.setToolTip(cfg.DASHBOARD_GRAPH_NET_MSG)
         # 3. Soportes (Ejemplo: líneas radiales)
         num_supports = 8
-        support_length = cage_radius + 30
+        support_length = cage_radius + 15
         for i in range(num_supports):
-            angle = 360 / num_supports * i
-            import math
-            x1 = 0
-            y1 = 0
-            x2 = support_length * math.cos(math.radians(angle))
-            y2 = support_length * math.sin(math.radians(angle))
+            angle = 360 / num_supports * i            
+            x1 = -cage_radius
+            y1 = -cage_radius
+            x2 = x1 + support_length * math.cos(math.radians(angle))
+            y2 = y1 + support_length * math.sin(math.radians(angle))
             support = scene.addLine(x1, y1, x2, y2, QPen(support_color, 2))
             support.setToolTip(cfg.DASHBOARD_GRAPH_PILLARS_MSG)
         # 4. Anclajes (Ejemplo: pequeños rectángulos en los extremos de los soportes)
-        anchor_size = 10
+        anchor_size = 5
         for i in range(num_supports):
-            angle = 360 / num_supports * i
-            import math
-            x = (support_length + anchor_size) * math.cos(math.radians(angle))
-            y = (support_length + anchor_size) * math.sin(math.radians(angle))
+            angle = 360 / num_supports * i            
+            x = -cage_radius + (support_length + anchor_size) * math.cos(math.radians(angle))
+            y = -cage_radius + (support_length + anchor_size) * math.sin(math.radians(angle))
             anchor = scene.addRect(x - anchor_size / 2, y - anchor_size / 2,
                                          anchor_size, anchor_size, pen, QBrush(Qt.blue))
             anchor.setToolTip(cfg.DASHBOARD_GRAPH_ANCHOR_MSG)
+
+    def _draw_schematic(self,pos_i,pos_j,raft):
+        # Contenedor principal
+        main_widget = QWidget()
+        grid_layout = QGridLayout(main_widget)
+        grid_layout.setSpacing(0)  # Espacio entre elementos del grid
+        # Espaciador para que los widgets no se estiren demasiado
+        grid_layout.setRowStretch(1, 1)
+        # Crear un QGraphicsView para mostrar la información de la balsa
+        view = QGraphicsView()
+        view.setMaximumWidth(200)
+        view.setMaximumHeight(170)
+        scene = QGraphicsScene()
+        # Aplicar un estilo con fondo semitransparente
+        view.setStyleSheet("""
+            QGraphicsView {
+                background-color: rgba(200, 200, 200, 150); /* Gris claro semitransparente */
+                border: 1px solid black; /* Borde negro opcional */
+            }
+        """)
+        # Configurar un tamaño inicial para la escena
+        scene_size = 150
+        cage_radius = scene_size / 10
+        self._draw_raft_2D(scene,scene_size,cage_radius)        
+        view.setScene(scene)
+
+        view2 = QGraphicsView()
+        view2.setMaximumWidth(200)
+        view2.setMaximumHeight(170)        
+        # Aplicar un estilo con fondo semitransparente
+        view2.setStyleSheet("""
+            QGraphicsView {
+                background-color: rgba(200, 200, 200, 150); /* Gris claro semitransparente */
+                border: 1px solid black; /* Borde negro opcional */
+            }
+        """)
+        view2.setScene(scene)
+
+        view3 = QGraphicsView()
+        view3.setMaximumWidth(200)
+        view3.setMaximumHeight(170)        
+        # Aplicar un estilo con fondo semitransparente
+        view3.setStyleSheet("""
+            QGraphicsView {
+                background-color: rgba(200, 200, 200, 150); /* Gris claro semitransparente */
+                border: 1px solid black; /* Borde negro opcional */
+            }
+        """)
+        view3.setScene(scene)
+
+        view4 = QGraphicsView()
+        view4.setMaximumWidth(200)
+        view4.setMaximumHeight(170)        
+        # Aplicar un estilo con fondo semitransparente
+        view4.setStyleSheet("""
+            QGraphicsView {
+                background-color: rgba(200, 200, 200, 150); /* Gris claro semitransparente */
+                border: 1px solid black; /* Borde negro opcional */
+            }
+        """)
+        view4.setScene(scene)
+        
         # 5. Añadir cajas informativas con valor esperado y fecha óptima
         # Intentar calcular los valores
         result = self._calculate_optimal_harvest_date(raft)
@@ -1040,25 +1079,32 @@ class dashBoardController:
             # Valores predeterminados cuando no se puede calcular
             optimal_date = "N/A"
             expected_value = 0
-        
-        # Cajas de valor esperado
-        # Añadir labels en otras celdas
-        label1 = QLabel("Valor esperado:" + "{0:.2f} EUR".format(expected_value))
-        label2 = QLabel("Fecha óptima de recogida:" + optimal_date)
-        label_style_small = """
-            QLabel {
-                font-size: 14px; /* Tamaño de la letra */
-                background-color: rgba(200, 200, 200, 150); /* Fondo semitransparente */
-                color: black; /* Color del texto */
-                border: 1px solid gray; /* Opcional: borde */
-                padding: 1px; /* Margen interno */
-            }
-        """
-        label1.setStyleSheet(label_style_small)
-        label2.setStyleSheet(label_style_small)
-        grid_layout.addWidget(label1, 0, 0, 1, 2)
-        grid_layout.addWidget(label2, 1, 0, 1, 3)
-        grid_layout.addWidget(view, 0, 2, 1, 1)
+
+        # Nombre de la balsa
+        raft_name = scene.addText(raft.getName(), QFont("Arial", 12, QFont.Bold))
+        raft_name.setDefaultTextColor(QColor(0, 0, 0))
+        raft_name.setPos(-cage_radius*4, -cage_radius*5)
+
+        # Título        
+        title_text = scene.addText("Información de Cosecha", QFont("Arial", 10, QFont.Bold))
+        title_text.setDefaultTextColor(QColor(0, 0, 0))
+        title_text.setPos(-cage_radius*6.5, cage_radius*1.2)
+    
+        # Valor esperado
+        value_text = scene.addText(f"Valor esperado: {expected_value:.2f} EUR", QFont("Arial", 10))
+        value_text.setDefaultTextColor(QColor(0, 100, 0))  # Verde
+        value_text.setPos(-cage_radius*6.5, cage_radius*2.2)
+    
+        # Fecha óptima
+        date_text = scene.addText(f"Recogida óptima: {optimal_date}", QFont("Arial", 10))
+        date_text.setDefaultTextColor(QColor(0, 0, 150))  # Azul
+        date_text.setPos(-cage_radius*6.5, cage_radius*3.2)
+    
+        # Solo añadir el view al layout (ocupa menos espacio)
+        grid_layout.addWidget(view, 0, 0)
+        grid_layout.addWidget(view2, 0, 1)
+        grid_layout.addWidget(view3, 0, 2)
+        grid_layout.addWidget(view4, 0, 4)
         
         self._view.centralwidget.layout().addWidget(main_widget,pos_i,pos_j)
     # --- Fin Grafico 2d ---
