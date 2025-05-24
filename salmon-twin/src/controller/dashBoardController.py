@@ -287,6 +287,9 @@ class dashBoardController:
                 self.timer_connected = False  # Marcar como desconectado
             except TypeError:
                 pass
+
+        # Limpiar las referencias a las líneas verticales antes de borrar widgets
+        self._clear_vertical_lines()
     
         # Borrar todos los widgets del layout
         for i in reversed(range(self._view.centralwidget.layout().count())): 
@@ -295,6 +298,26 @@ class dashBoardController:
         # Limpiar las referencias a los peces
         self.fish_items = []
         self.fish_positions = []
+
+    def _clear_vertical_lines(self):
+        """Limpia las referencias a las líneas verticales para evitar errores"""
+        # Limpiar líneas de temperatura
+        if hasattr(self, 'date_vline'):
+            self.date_vline = None
+        if hasattr(self, 'date_vline_forescast'):
+            self.date_vline_forescast = None
+    
+        # Limpiar líneas de crecimiento
+        if hasattr(self, 'growth_vline'):
+            self.growth_vline = None
+        if hasattr(self, 'growth_vline_forescast'):
+            self.growth_vline_forescast = None
+    
+        # Limpiar líneas de precio
+        if hasattr(self, 'price_vline'):
+            self.price_vline = None
+        if hasattr(self, 'price_vline_forescast'):
+            self.price_vline_forescast = None
 
     # Dibujar la balsa seleccionada
     def _draw_raft(self,raftName):
@@ -307,7 +330,7 @@ class dashBoardController:
         self._clear_dashboard()        
         # Dibujar la balsa
         self._draw_infopanel(0,0,raft)
-        self._draw_schematic(0,1,raft)
+        self._draw_schematic(0,1,raft,self.raftCon.get_rafts())
         self._draw_graph_temperature(1,0,raft)
         self._draw_growth_model(1,1,raft)
         self._draw_price(2,0,raft)
@@ -1007,104 +1030,68 @@ class dashBoardController:
                                          anchor_size, anchor_size, pen, QBrush(Qt.blue))
             anchor.setToolTip(cfg.DASHBOARD_GRAPH_ANCHOR_MSG)
 
-    def _draw_schematic(self,pos_i,pos_j,raft):
+    def _draw_schematic(self,pos_i,pos_j,raft,rafts):
         # Contenedor principal
         main_widget = QWidget()
         grid_layout = QGridLayout(main_widget)
         grid_layout.setSpacing(0)  # Espacio entre elementos del grid
         # Espaciador para que los widgets no se estiren demasiado
-        grid_layout.setRowStretch(1, 1)
-        # Crear un QGraphicsView para mostrar la información de la balsa
-        view = QGraphicsView()
-        view.setMaximumWidth(200)
-        view.setMaximumHeight(170)
-        scene = QGraphicsScene()
-        # Aplicar un estilo con fondo semitransparente
-        view.setStyleSheet("""
-            QGraphicsView {
-                background-color: rgba(200, 200, 200, 150); /* Gris claro semitransparente */
-                border: 1px solid black; /* Borde negro opcional */
-            }
-        """)
-        # Configurar un tamaño inicial para la escena
-        scene_size = 150
-        cage_radius = scene_size / 10
-        self._draw_raft_2D(scene,scene_size,cage_radius)        
-        view.setScene(scene)
-
-        view2 = QGraphicsView()
-        view2.setMaximumWidth(200)
-        view2.setMaximumHeight(170)        
-        # Aplicar un estilo con fondo semitransparente
-        view2.setStyleSheet("""
-            QGraphicsView {
-                background-color: rgba(200, 200, 200, 150); /* Gris claro semitransparente */
-                border: 1px solid black; /* Borde negro opcional */
-            }
-        """)
-        view2.setScene(scene)
-
-        view3 = QGraphicsView()
-        view3.setMaximumWidth(200)
-        view3.setMaximumHeight(170)        
-        # Aplicar un estilo con fondo semitransparente
-        view3.setStyleSheet("""
-            QGraphicsView {
-                background-color: rgba(200, 200, 200, 150); /* Gris claro semitransparente */
-                border: 1px solid black; /* Borde negro opcional */
-            }
-        """)
-        view3.setScene(scene)
-
-        view4 = QGraphicsView()
-        view4.setMaximumWidth(200)
-        view4.setMaximumHeight(170)        
-        # Aplicar un estilo con fondo semitransparente
-        view4.setStyleSheet("""
-            QGraphicsView {
-                background-color: rgba(200, 200, 200, 150); /* Gris claro semitransparente */
-                border: 1px solid black; /* Borde negro opcional */
-            }
-        """)
-        view4.setScene(scene)
+        grid_layout.setRowStretch(1, 1)        
+        i= 0
+        for raft in rafts:
+            i= i + 1
+            # Crear un QGraphicsView para mostrar la información de la balsa
+            view = QGraphicsView()
+            view.setMaximumWidth(270)
+            view.setMaximumHeight(270)
+            scene = QGraphicsScene()
+            # Aplicar un estilo con fondo semitransparente
+            view.setStyleSheet("""
+                QGraphicsView {
+                    background-color: rgba(200, 200, 200, 150); /* Gris claro semitransparente */
+                    border: 1px solid black; /* Borde negro opcional */
+                }
+                """)
+            # Configurar un tamaño inicial para la escena
+            scene_size = 150
+            cage_radius = scene_size / 10
+            self._draw_raft_2D(scene,scene_size,cage_radius)        
+            view.setScene(scene)        
         
-        # 5. Añadir cajas informativas con valor esperado y fecha óptima
-        # Intentar calcular los valores
-        result = self._calculate_optimal_harvest_date(raft)
-        if result is not None:
-            date, biomass, price, nFishes, total = result
-            optimal_date = date.strftime("%d/%m/%Y") if hasattr(date, 'strftime') else "N/A"
-            expected_value = total if total is not None else 0
-        else:
-            # Valores predeterminados cuando no se puede calcular
-            optimal_date = "N/A"
-            expected_value = 0
+            # 5. Añadir cajas informativas con valor esperado y fecha óptima
+            # Intentar calcular los valores
+            result = self._calculate_optimal_harvest_date(raft)
+            if result is not None:
+                date, biomass, price, nFishes, total = result
+                optimal_date = date.strftime("%d/%m/%Y") if hasattr(date, 'strftime') else "N/A"
+                expected_value = total if total is not None else 0
+            else:
+                # Valores predeterminados cuando no se puede calcular
+                optimal_date = "N/A"
+                expected_value = 0
 
-        # Nombre de la balsa
-        raft_name = scene.addText(raft.getName(), QFont("Arial", 12, QFont.Bold))
-        raft_name.setDefaultTextColor(QColor(0, 0, 0))
-        raft_name.setPos(-cage_radius*4, -cage_radius*5)
+            # Nombre de la balsa
+            raft_name = scene.addText(raft.getName(), QFont("Arial", 12, QFont.Bold))
+            raft_name.setDefaultTextColor(QColor(0, 0, 0))
+            raft_name.setPos(-cage_radius*4, -cage_radius*5)
 
-        # Título        
-        title_text = scene.addText("Información de Cosecha", QFont("Arial", 10, QFont.Bold))
-        title_text.setDefaultTextColor(QColor(0, 0, 0))
-        title_text.setPos(-cage_radius*6.5, cage_radius*1.2)
+            # Título        
+            title_text = scene.addText("Información de Cosecha", QFont("Arial", 10, QFont.Bold))
+            title_text.setDefaultTextColor(QColor(0, 0, 0))
+            title_text.setPos(-cage_radius*6.5, cage_radius*1.2)
     
-        # Valor esperado
-        value_text = scene.addText(f"Valor esperado: {expected_value:.2f} EUR", QFont("Arial", 10))
-        value_text.setDefaultTextColor(QColor(0, 100, 0))  # Verde
-        value_text.setPos(-cage_radius*6.5, cage_radius*2.2)
+            # Valor esperado
+            value_text = scene.addText(f"Valor esperado: {expected_value:.2f} EUR", QFont("Arial", 10))
+            value_text.setDefaultTextColor(QColor(0, 100, 0))  # Verde
+            value_text.setPos(-cage_radius*6.5, cage_radius*2.2)
     
-        # Fecha óptima
-        date_text = scene.addText(f"Recogida óptima: {optimal_date}", QFont("Arial", 10))
-        date_text.setDefaultTextColor(QColor(0, 0, 150))  # Azul
-        date_text.setPos(-cage_radius*6.5, cage_radius*3.2)
+            # Fecha óptima
+            date_text = scene.addText(f"Recogida óptima: {optimal_date}", QFont("Arial", 10))
+            date_text.setDefaultTextColor(QColor(0, 0, 150))  # Azul
+            date_text.setPos(-cage_radius*6.5, cage_radius*3.2)
     
-        # Solo añadir el view al layout (ocupa menos espacio)
-        grid_layout.addWidget(view, 0, 0)
-        grid_layout.addWidget(view2, 0, 1)
-        grid_layout.addWidget(view3, 0, 2)
-        grid_layout.addWidget(view4, 0, 4)
+            # Solo añadir el view al layout (ocupa menos espacio)
+            grid_layout.addWidget(view, 0, i)        
         
         self._view.centralwidget.layout().addWidget(main_widget,pos_i,pos_j)
     # --- Fin Grafico 2d ---
@@ -1125,15 +1112,28 @@ class dashBoardController:
         lforescastPrice.setText("Pronóstico Precio: {0:.2f} EUR/kg".format(raft.getPriceForecast(current_date)))
         lforescastTotalValue.setText("Pronóstico Valor total: {0:.2f} EUR".format(raft.getTotalValueForecast(current_date)))
 
-        # Actualizar líneas verticales en todas las gráficas
+        # Actualizar líneas verticales en todas las gráficas SOLO si existen
         try:
             timestamp = pd.Timestamp(current_date).timestamp()
-            if hasattr(self, 'date_vline_forescast'):
-                self.date_vline_forescast.setPos(timestamp)
-            if hasattr(self, 'growth_vline_forescast'):
-                self.growth_vline_forescast.setPos(timestamp)
-            if hasattr(self, 'price_vline_forescast'):
-                self.price_vline_forescast.setPos(timestamp)
+            # Verificar que las líneas existan y no hayan sido eliminadas
+            if hasattr(self, 'date_vline_forescast') and self.date_vline_forescast is not None:
+                try:
+                    self.date_vline_forescast.setPos(timestamp)
+                except RuntimeError:
+                    # La línea fue eliminada, limpiar la referencia
+                    self.date_vline_forescast = None                
+            if hasattr(self, 'growth_vline_forescast') and self.growth_vline_forescast is not None:
+                try:
+                    self.growth_vline_forescast.setPos(timestamp)
+                except RuntimeError:
+                    # La línea fue eliminada, limpiar la referencia
+                    self.growth_vline_forescast = None                
+            if hasattr(self, 'price_vline_forescast') and self.price_vline_forescast is not None:
+                try:
+                    self.price_vline_forescast.setPos(timestamp)
+                except RuntimeError:
+                    # La línea fue eliminada, limpiar la referencia
+                    self.price_vline_forescast = None
         except Exception as e:
             print(cfg.DASHBOARD_DATE_VLINE_FOR_ERROR.format(error=str(e)))
 
@@ -1151,15 +1151,30 @@ class dashBoardController:
         formatted_date = current_date.strftime("%d de %B de %Y")
         lcurrentDate.setText("Fecha actual: " + formatted_date)
 
-        # Actualizar líneas verticales en todas las gráficas
+        # Actualizar líneas verticales en todas las gráficas SOLO si existen
         try:
             timestamp = pd.Timestamp(current_date).timestamp()
-            if hasattr(self, 'date_vline'):
-                self.date_vline.setPos(timestamp)
-            if hasattr(self, 'growth_vline'):
-                self.growth_vline.setPos(timestamp)
-            if hasattr(self, 'price_vline'):
-                self.price_vline.setPos(timestamp)
+            # Verificar que las líneas existan y no hayan sido eliminadas
+            if hasattr(self, 'date_vline') and self.date_vline is not None:
+                try:
+                    self.date_vline.setPos(timestamp)
+                except RuntimeError:
+                    # La línea fue eliminada, limpiar la referencia
+                    self.date_vline = None
+                
+            if hasattr(self, 'growth_vline') and self.growth_vline is not None:
+                try:
+                    self.growth_vline.setPos(timestamp)
+                except RuntimeError:
+                    # La línea fue eliminada, limpiar la referencia
+                    self.growth_vline = None
+                
+            if hasattr(self, 'price_vline') and self.price_vline is not None:
+                try:
+                    self.price_vline.setPos(timestamp)
+                except RuntimeError:
+                    # La línea fue eliminada, limpiar la referencia
+                    self.price_vline = None
         except Exception as e:
             print(cfg.DASHBOARD_DATE_VLINE_HIS_ERROR.format(error=str(e)))
 

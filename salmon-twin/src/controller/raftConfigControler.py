@@ -121,6 +121,10 @@ class raftConfigController:
     def count_rafts(self):
         return len(self.rafts)
     
+    # Obtener una lista de las balsas
+    def get_rafts(self):
+        return self.rafts
+    
     # Obtener los nombres de las balsas
     def get_name_rafts(self):
         return [raft.getName() for raft in self.rafts]
