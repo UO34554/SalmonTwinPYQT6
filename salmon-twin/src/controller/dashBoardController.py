@@ -53,6 +53,7 @@ class dashBoardController:
         self._view.actionPredecir.triggered.connect(self.on_temperature_predict)
         self._view.actionCSVprecio.triggered.connect(self.on_price_load_csv)
         self._view.actionPredecirPrecio.triggered.connect(self.on_price_predict)
+        self._view.actionBuscarPredictor.triggered.connect(self.on_search_price_predictor)
         self._view.actionPredecirCrecimiento.triggered.connect(self.on_growth_predict)      
     
     # --- Eventos de la vista ---
@@ -239,6 +240,37 @@ class dashBoardController:
         # Dias de predicción
         perCent = raft.getPerCentage()/1000
         if self.priceModel.fit_price(perCent,start_date, end_date, False):
+            # Guardar los datos de precios en la balsa
+            raft.setPerCentage(sliderValue)           
+            raft.setPriceForecast(self.priceModel.getPriceDataForecast())
+            # Actualizar la balsa en la lista de balsas
+            if self.raftCon.update_rafts_price_forecast(raft):
+                auxTools.show_info_dialog(cfg.DASHBOARD_PREDICT_PRICE_SUCCESS)
+        else:            
+            auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
+
+    def on_search_price_predictor(self):
+        raft = self.choice_raft_list_dialog()
+        if raft is None:
+            return
+        
+        # Obtener las fechas inicial y final de la balsa
+        start_date = raft.getStartDate()
+        end_date = raft.getEndDate()        
+        if not self.priceModel.setPriceData(raft.getPriceData()):
+            auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
+            return
+        # Llamar al método fit_price con las fechas específicas
+        if self.dateSliderCurrent is None:
+            sliderValue = 0
+            auxTools.show_error_message(cfg.DASHBOARD_NO_FORESCAST_PERIOD_ERROR)
+            return
+        else:
+            sliderValue = self.dateSliderCurrent.value()
+
+        # Dias de predicción
+        perCent = raft.getPerCentage()/1000
+        if self.priceModel.fit_price(perCent,start_date, end_date, True):
             # Guardar los datos de precios en la balsa
             raft.setPerCentage(sliderValue)           
             raft.setPriceForecast(self.priceModel.getPriceDataForecast())

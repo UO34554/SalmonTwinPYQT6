@@ -115,6 +115,7 @@ QStatusBar {
     </widget>
     <addaction name="menuCargarPrecio"/>
     <addaction name="actionPredecirPrecio"/>
+    <addaction name="actionBuscarPredictor"/>
    </widget>
    <widget class="QMenu" name="menuCrecimiento">
     <property name="title">
@@ -175,6 +176,11 @@ QStatusBar {
   <action name="actionPredecirCrecimiento">
    <property name="text">
     <string>Predecir</string>
+   </property>
+  </action>
+  <action name="actionBuscarPredictor">
+   <property name="text">
+    <string>Buscar Predictor</string>
    </property>
   </action>
  </widget>
