@@ -330,7 +330,7 @@ class dashBoardController:
         self._clear_dashboard()        
         # Dibujar la balsa
         self._draw_infopanel(0,0,raft)
-        self._draw_schematic(0,1,raft,self.raftCon.get_rafts())
+        self._draw_miniDash(0,1,raft,self.raftCon.get_rafts())
         self._draw_graph_temperature(1,0,raft)
         self._draw_growth_model(1,1,raft)
         self._draw_price(2,0,raft)
@@ -1030,20 +1030,19 @@ class dashBoardController:
                                          anchor_size, anchor_size, pen, QBrush(Qt.blue))
             anchor.setToolTip(cfg.DASHBOARD_GRAPH_ANCHOR_MSG)
 
-    def _draw_schematic(self,pos_i,pos_j,raft,rafts):
+    def _draw_miniDash(self,pos_i,pos_j,currentRaft,rafts):
         # Contenedor principal
         main_widget = QWidget()
         grid_layout = QGridLayout(main_widget)
         grid_layout.setSpacing(0)  # Espacio entre elementos del grid
         # Espaciador para que los widgets no se estiren demasiado
         grid_layout.setRowStretch(1, 1)        
-        i= 0
+        col = 0
         for raft in rafts:
-            i= i + 1
+            # Detectar si es la balsa actual
+            isCrrent = (raft.getId() == currentRaft.getId())            
             # Crear un QGraphicsView para mostrar la información de la balsa
-            view = QGraphicsView()
-            view.setMaximumWidth(270)
-            view.setMaximumHeight(270)
+            view = QGraphicsView()            
             scene = QGraphicsScene()
             # Aplicar un estilo con fondo semitransparente
             view.setStyleSheet("""
@@ -1053,10 +1052,28 @@ class dashBoardController:
                 }
                 """)
             # Configurar un tamaño inicial para la escena
-            scene_size = 150
-            cage_radius = scene_size / 10
-            self._draw_raft_2D(scene,scene_size,cage_radius)        
-            view.setScene(scene)        
+            if isCrrent:
+                view.setMaximumWidth(350)
+                view.setMaximumHeight(350)
+                scene_size = 200
+                cage_radius = scene_size / 10
+                font_name_size = 14
+                font_title_size = 12
+                font_info_size = 11
+                multiplier_pos = 5
+                self._draw_raft_2D(scene,scene_size,cage_radius)        
+                view.setScene(scene)       
+            else:
+                view.setMaximumWidth(270)
+                view.setMaximumHeight(270)
+                scene_size = 150
+                cage_radius = scene_size / 10
+                font_name_size = 10
+                font_title_size = 9
+                font_info_size = 8
+                multiplier_pos = 5
+                self._draw_raft_2D(scene,scene_size,cage_radius)        
+                view.setScene(scene)        
         
             # 5. Añadir cajas informativas con valor esperado y fecha óptima
             # Intentar calcular los valores
@@ -1071,27 +1088,31 @@ class dashBoardController:
                 expected_value = 0
 
             # Nombre de la balsa
-            raft_name = scene.addText(raft.getName(), QFont("Arial", 12, QFont.Bold))
+            raft_name = scene.addText(raft.getName(), QFont("Arial", font_name_size, QFont.Bold))
             raft_name.setDefaultTextColor(QColor(0, 0, 0))
             raft_name.setPos(-cage_radius*4, -cage_radius*5)
 
             # Título        
-            title_text = scene.addText("Información de Cosecha", QFont("Arial", 10, QFont.Bold))
+            title_text = scene.addText("Información de Cosecha", QFont("Arial", font_title_size, QFont.Bold))
             title_text.setDefaultTextColor(QColor(0, 0, 0))
-            title_text.setPos(-cage_radius*6.5, cage_radius*1.2)
+            title_text.setPos(-cage_radius*multiplier_pos, cage_radius*1.5)
     
             # Valor esperado
-            value_text = scene.addText(f"Valor esperado: {expected_value:.2f} EUR", QFont("Arial", 10))
+            value_text = scene.addText(f"Valor esperado: {expected_value:.2f} EUR", QFont("Arial", font_info_size))
             value_text.setDefaultTextColor(QColor(0, 100, 0))  # Verde
-            value_text.setPos(-cage_radius*6.5, cage_radius*2.2)
+            value_text.setPos(-cage_radius*multiplier_pos, cage_radius*2.5)
     
             # Fecha óptima
-            date_text = scene.addText(f"Recogida óptima: {optimal_date}", QFont("Arial", 10))
+            date_text = scene.addText(f"Recogida óptima: {optimal_date}", QFont("Arial", font_info_size))
             date_text.setDefaultTextColor(QColor(0, 0, 150))  # Azul
-            date_text.setPos(-cage_radius*6.5, cage_radius*3.2)
+            date_text.setPos(-cage_radius*multiplier_pos, cage_radius*3.5)
     
-            # Solo añadir el view al layout (ocupa menos espacio)
-            grid_layout.addWidget(view, 0, i)        
+            # Solo añadir el view al layout
+            if isCrrent:
+                grid_layout.addWidget(view, 0, 0, 1, 1)
+            else:
+                col += 1
+                grid_layout.addWidget(view, 0, col, 1, 1)  
         
         self._view.centralwidget.layout().addWidget(main_widget,pos_i,pos_j)
     # --- Fin Grafico 2d ---
