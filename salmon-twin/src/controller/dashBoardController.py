@@ -1443,6 +1443,8 @@ class dashBoardController:
         if raft is None or raft.getTemperature().empty:
             # Mostrar una 'X' roja si no hay datos de temperatura
             plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
+            self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)
+            return
         else:
             # Obtener los datos de predicción de temperatura de la balsa si hay
             if not raft.getTemperatureForecast().empty:
@@ -1469,6 +1471,8 @@ class dashBoardController:
             if df_temperature.empty:
                 # Mostrar una 'X' roja si no hay datos de temperatura
                 plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
+                self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)
+                return
             else:
                 # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
                 x = df_temperature['ds'].map(pd.Timestamp.timestamp).values
@@ -1504,22 +1508,28 @@ class dashBoardController:
                     self.y_forecast = df_temperature_forecast['yhat'].values
 
                     # Graficar los datos de predicción de temperatura
-                    plot_widget.plot(self.x_forecast, self.y_forecast, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Predicción", color='k')  
+                    plot_widget.plot(self.x_forecast, self.y_forecast, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Predicción", color='k')
+
+                    # Ajustar los rangos de los ejes de manera dinámica
+                    min_x = min(x.min(), self.x_forecast.min())
+                    max_x = max(x.max(), self.x_forecast.max())
+                    min_y = min(y.min(), self.y_forecast.min())
+                    max_y = max(y.max(), self.y_forecast.max())
+                else:
+                    # Si no hay predicción, usar solo los datos históricos
+                    min_x = x.min()
+                    max_x = x.max()
+                    min_y = y.min()
+                    max_y = y.max()
+
+                plot_widget.setXRange(min_x, max_x, padding=0.1)
+                plot_widget.setYRange(min_y, max_y, padding=0.1)
 
                 # Establecer color negro para la leyenda
                 for item in legend.items:
                     label = item[1]
                     texto_original = label.text
-                    label.setText(texto_original, color='k')
-
-                # Ajustar los rangos de los ejes de manera dinámica
-                min_x = min(x.min(), self.x_forecast.min())
-                max_x = max(x.max(), self.x_forecast.max())
-                min_y = min(y.min(), self.y_forecast.min())
-                max_y = max(y.max(), self.y_forecast.max())
-                
-                plot_widget.setXRange(min_x, max_x, padding=0.1)
-                plot_widget.setYRange(min_y, max_y, padding=0.1)
+                    label.setText(texto_original, color='k') 
 
                 '''
                 # Conectar el evento de movimiento del ratón
