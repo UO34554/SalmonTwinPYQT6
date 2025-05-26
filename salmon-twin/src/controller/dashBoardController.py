@@ -2,8 +2,8 @@
 @author: Pedro López Treitiño
 Gestor unificado de balsas marinas para el sistema Salmon Twin
 """
-from PySide6.QtWidgets import QLabel, QDialog, QFileDialog, QGraphicsView, QGraphicsScene, QWidget, QSlider, QGridLayout
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QLabel, QDialog, QFileDialog, QGraphicsView, QGraphicsScene, QWidget, QSlider, QGridLayout, QVBoxLayout, QPushButton, QProgressDialog, QTextEdit
+from PySide6.QtCore import Qt, QTimer, QThread, QMutexLocker, QMutex, Signal
 from PySide6.QtGui import QPen, QBrush, QColor, QFont
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
@@ -145,6 +145,7 @@ class dashBoardController:
             )
         if self.load_dataTemperature_from_file("csv", file_name[0], ';'):
             if self._save_raft_temperature():             
+
                 auxTools.show_info_dialog(cfg.DASHBOARD_LOAD_TEMP_FILE_SUCCESS)
         else:
             auxTools.show_error_message(cfg.DASHBOARD_LOAD_TEMP_FILE_ERROR)
@@ -253,32 +254,69 @@ class dashBoardController:
         raft = self.choice_raft_list_dialog()
         if raft is None:
             return
-        
-        # Obtener las fechas inicial y final de la balsa
+    
+        # Obtener las fechas y configurar datos en el modelo
         start_date = raft.getStartDate()
         end_date = raft.getEndDate()        
         if not self.priceModel.setPriceData(raft.getPriceData()):
             auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
             return
-        # Llamar al método fit_price con las fechas específicas
+    
+        # Verificar slider
         if self.dateSliderCurrent is None:
-            sliderValue = 0
             auxTools.show_error_message(cfg.DASHBOARD_NO_FORESCAST_PERIOD_ERROR)
             return
-        else:
-            sliderValue = self.dateSliderCurrent.value()
+    
+        # Calcular porcentaje
+        perCent = raft.getPerCentage() / 1000
+    
+        # Crear y mostrar diálogo de progreso
+        self.search_dialog = PredictorSearchDialog(self._view)
 
-        # Dias de predicción
-        perCent = raft.getPerCentage()/1000
-        if self.priceModel.fit_price(perCent,start_date, end_date, True):
-            # Guardar los datos de precios en la balsa
-            raft.setPerCentage(sliderValue)           
-            raft.setPriceForecast(self.priceModel.getPriceDataForecast())
-            # Actualizar la balsa en la lista de balsas
+        # Crear worker thread
+        self.search_worker = PricePredictorSearchWorker(
+            self.priceModel, perCent, start_date, end_date, n_iterations=100
+        )
+
+        # Conectar señales (SIN popup molesto)
+        self.search_worker.progress_updated.connect(self.search_dialog.update_progress)
+        self.search_worker.status_updated.connect(self.search_dialog.update_status)
+        self.search_worker.result_found.connect(self.search_dialog.add_result)
+        self.search_worker.finished_signal.connect(self._on_search_finished)
+        self.search_worker.finished_signal.connect(self.search_dialog.search_finished)
+
+        # Conectar cancelación al botón integrado (NO popup)
+        self.search_dialog.cancel_button.clicked.connect(self.search_worker.stop)
+        self.search_dialog.cancel_button.clicked.connect(self.search_dialog.cancel_search)
+
+        # Iniciar worker thread
+        self.search_worker.start()
+
+        # Mostrar diálogo (SIN popup molesto)
+        self.search_dialog.exec()
+
+    def _on_search_finished(self, success, message):
+        """Callback cuando termina la búsqueda"""
+        if success:
+            # Actualizar la balsa con los nuevos datos
+            raft = self.raftCon.get_raft_by_name(self.lastRaftName)
+            if raft:
+                raft.setPerCentage(self.dateSliderCurrent.value())
+                raft.setPriceForecast(self.priceModel.getPriceDataForecast())
+            
             if self.raftCon.update_rafts_price_forecast(raft):
-                auxTools.show_info_dialog(cfg.DASHBOARD_PREDICT_PRICE_SUCCESS)
-        else:            
-            auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
+                # Solo mostrar popup para éxito
+                auxTools.show_info_dialog("Búsqueda de predictor completada exitosamente")
+            else:
+                # Solo mostrar popup para errores críticos de actualización
+                auxTools.show_error_message("Error actualizando la balsa con los nuevos datos")
+        else:
+            # NO mostrar popup para errores de búsqueda - ya se muestran en la ventana
+            pass
+        
+        # Limpiar referencias
+        self.search_worker = None
+        self.search_dialog = None
 
     # --- Métodos de la lógica de negocio
     def _save_raft_temperature(self):
@@ -482,7 +520,7 @@ class dashBoardController:
 
             # Establecer los ticks iniciales
             self._update_price_axis_ticks([[x.min(), x.max()], [y.min(), y.max()]])
-            
+
             # Crear un ScatterPlotItem para ver los puntos de datos
             scatter = pg.ScatterPlotItem(x=x, y=y, pen=pg.mkPen(color='k'), brush=pg.mkBrush(255, 255, 255, 120), size=7)
             plot_widget.addItem(scatter)
@@ -498,9 +536,11 @@ class dashBoardController:
                 x_forecast = np.array([pd.Timestamp(date).timestamp() 
                          for date in price_data_forescast['ds'] 
                          if not pd.isna(date)])
-    
+
+
                 # Asegurarse de que 'y' tiene la misma longitud que x_forecast
                 y_forecast = price_data_forescast['y'].iloc[:len(x_forecast)].values                
+
 
                 # Graficar los datos de precio pronosticados
                 plot_widget.plot(x_forecast, y_forecast, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), 
@@ -636,7 +676,7 @@ class dashBoardController:
             df_temperature = df_temperature[(df_temperature['ds'].dt.date >= raft.getStartDate()) & 
                                         (df_temperature['ds'].dt.date <= fecha_actual)]
 
-            
+
             if df_temperature.empty:
                 # Mostrar una 'X' roja si no hay datos de temperatura
                 plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
@@ -824,6 +864,7 @@ class dashBoardController:
             self.fish_orientations.append({'yaw': yaw, 'pitch': pitch, 'body_scale_x': body_scale_x, 'tail_offset_x': tail_offset_x})
             view.addItem(body_item)
             view.addItem(tail_item)                       
+
         # Configurar un temporizador para animar los peces
         self.timer.stop()        
         # Desconectar primero si ya estaba conectado
@@ -945,7 +986,6 @@ class dashBoardController:
         
             if growth_forecast is None or price_forecast is None or growth_forecast.empty or price_forecast.empty:
                 return None
-            
             # Convertir fechas a datetime
             growth_forecast['ds'] = pd.to_datetime(growth_forecast['ds'])
             price_forecast['ds'] = pd.to_datetime(price_forecast['ds'])
@@ -1077,7 +1117,7 @@ class dashBoardController:
             view = QGraphicsView()            
             scene = QGraphicsScene()
             # Aplicar un estilo con fondo semitransparente
-            view.setStyleSheet("""
+            view.setStyleSheet("""                
                 QGraphicsView {
                     background-color: rgba(200, 200, 200, 150); /* Gris claro semitransparente */
                     border: 1px solid black; /* Borde negro opcional */
@@ -1658,4 +1698,528 @@ class dashBoardController:
             pass
         elif file_type == "excel":
             # Implementar la carga de datos desde un archivo Excel 
-            pass  
+            pass
+  
+class PricePredictorSearchWorker(QThread):
+    # Señales para comunicación con la interfaz principal
+    progress_updated = Signal(int)
+    status_updated = Signal(str)
+    result_found = Signal(dict)
+    finished_signal = Signal(bool, str)
+    
+    def __init__(self, price_model, percent, start_date, end_date, n_iterations=100):
+        super().__init__()
+        self.price_model = price_model
+        self.percent = percent
+        self.start_date = start_date
+        self.end_date = end_date
+        self.n_iterations = n_iterations
+        self.should_stop = False
+        self.mutex = QMutex()
+        
+    def stop(self):
+        """Método para detener el hilo de forma segura"""
+        with QMutexLocker(self.mutex):
+            self.should_stop = True
+    
+    def run(self):
+        """Método principal que se ejecuta en el hilo separado"""
+        try:
+            self.status_updated.emit("Preparando datos para optimización...")
+            
+            # 1. Preparar datos usando el modelo
+            data_result = self.price_model.prepare_data_for_optimization(
+                self.percent, self.start_date, self.end_date
+            )
+            
+            if data_result is None:
+                # Obtener el error detallado del modelo
+                detailed_error = self.price_model.lastError
+                self.finished_signal.emit(False, f"Error preparando datos:\n\n{detailed_error}")
+                return
+            
+            train_data, test_data = data_result
+            
+            # 2. Verificar si se debe detener
+            with QMutexLocker(self.mutex):
+                if self.should_stop:
+                    self.finished_signal.emit(False, "Búsqueda cancelada por el usuario")
+                    return
+            
+            # 3. Ejecutar optimización con monitoreo de progreso
+            self.status_updated.emit("Ejecutando búsqueda de parámetros óptimos...")
+            results = self._run_optimization_with_progress(train_data, test_data)
+            
+            if self.should_stop:
+                self.finished_signal.emit(False, "Búsqueda cancelada por el usuario")
+                return
+            
+            if results and len(results) > 0:
+                # 4. Entrenar modelo final
+                self.status_updated.emit("Entrenando modelo final con mejores parámetros...")
+                success = self.price_model.train_final_model(results[0])
+                
+                if success:
+                    self.finished_signal.emit(True, "Búsqueda completada exitosamente")
+                else:
+                    self.finished_signal.emit(False, f"Error entrenando modelo final: {self.price_model.lastError}")
+            else:
+                self.finished_signal.emit(False, "No se encontraron configuraciones válidas")
+                
+        except Exception as e:
+            self.finished_signal.emit(False, f"Error durante la búsqueda: {str(e)}")
+
+    def _run_optimization_with_progress(self, train_data, test_data):
+        """Ejecutar optimización con monitoreo de progreso usando monkey patching"""
+        original_print = print
+        iteration_count = 0
+        best_score = 0.0
+        
+        def progress_print(*args, **kwargs):
+            nonlocal iteration_count, best_score
+            
+            # Verificar si se debe detener
+            with QMutexLocker(self.mutex):
+                if self.should_stop:
+                    return
+            
+            message = ' '.join(map(str, args))
+            
+            # Detectar nueva mejor configuración
+            if "Nueva mejor configuración" in message:
+                iteration_count += 1
+                progress = min(int((iteration_count / self.n_iterations) * 100), 100)
+                self.progress_updated.emit(progress)
+                self.status_updated.emit(f"Evaluando configuración {iteration_count}/{self.n_iterations}")
+                
+                # Parsear información del resultado
+                if "score:" in message:
+                    try:
+                        score_part = message.split("score:")[1].split(")")[0].strip()
+                        score = float(score_part)
+                        if score > best_score:
+                            best_score = score
+                            
+                            # Extraer más información del mensaje
+                            result = {
+                                'score': score,
+                                'iteration': iteration_count,
+                                'message': message,
+                                'raw_output': message
+                            }
+                            self.result_found.emit(result)
+                    except:
+                        pass
+            
+            # Llamar al print original
+            original_print(*args, **kwargs)
+        
+        try:
+            # Reemplazar temporalmente print
+            import builtins
+            builtins.print = progress_print
+            
+            # Ejecutar optimización usando el método del modelo
+            results = self.price_model.run_parameter_optimization(
+                train_data, test_data, self.n_iterations
+            )
+            
+            return results
+            
+        finally:
+            # Restaurar print original
+            builtins.print = original_print
+
+class PredictorSearchDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Búsqueda de Predictor Óptimo")
+        self.setFixedSize(900, 650)
+        self.setModal(True)
+        
+        # Layout principal
+        layout = QVBoxLayout(self)
+
+        # Añadir barra de progreso integrada en la ventana principal
+        progress_label = QLabel("📊 PROGRESO DE LA BÚSQUEDA")
+        progress_label.setFont(QFont("Arial", 12, QFont.Bold))
+        progress_label.setStyleSheet("color: #1E90FF; margin: 10px 0px;")
+        layout.addWidget(progress_label)
+        
+        # Barra de progreso integrada (no popup)
+        from PySide6.QtWidgets import QProgressBar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setFormat("Iniciando búsqueda... %p%")
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #4682B4;
+                border-radius: 5px;
+                text-align: center;
+                font-weight: bold;
+            }
+            QProgressBar::chunk {
+                background-color: #4682B4;
+                border-radius: 3px;
+            }
+        """)
+        layout.addWidget(self.progress_bar)
+        
+        # Área de texto para mostrar resultados en tiempo real
+        results_label = QLabel("🔍 PROGRESO EN TIEMPO REAL")
+        results_label.setFont(QFont("Arial", 11, QFont.Bold))
+        results_label.setStyleSheet("color: #2E8B57; margin: 10px 0px 5px 0px;")
+        layout.addWidget(results_label)
+        
+        self.results_text = QTextEdit()
+        self.results_text.setReadOnly(True)
+        self.results_text.setFont(QFont("Consolas", 9))
+        self.results_text.setMaximumHeight(150)  # Reducir altura para dar más espacio al ranking
+        layout.addWidget(self.results_text)
+        
+        # Área para mostrar el ranking de mejores configuraciones
+        ranking_label = QLabel("🏆 RANKING DE MEJORES CONFIGURACIONES")
+        ranking_label.setFont(QFont("Arial", 12, QFont.Bold))
+        ranking_label.setStyleSheet("color: #2E8B57; margin: 10px 0px;")
+        layout.addWidget(ranking_label)
+        
+        self.ranking_text = QTextEdit()
+        self.ranking_text.setReadOnly(True)
+        self.ranking_text.setFont(QFont("Consolas", 9))
+        self.ranking_text.setStyleSheet("""
+            QTextEdit {
+                background-color: #F0F8FF;
+                border: 2px solid #4682B4;
+                border-radius: 5px;
+                padding: 10px;
+            }
+        """)
+        layout.addWidget(self.ranking_text)
+        
+        # Layout para botones
+        button_layout = QVBoxLayout()
+
+        # Botón de cancelar (reemplaza la funcionalidad del popup)
+        self.cancel_button = QPushButton("❌ Cancelar Búsqueda")
+        self.cancel_button.setStyleSheet("""
+            QPushButton {
+                background-color: #FF6B6B;
+                color: white;
+                font-weight: bold;
+                padding: 8px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #FF5252;
+            }
+        """)
+        button_layout.addWidget(self.cancel_button)
+        
+        # Botón de ayuda (opcional)
+        self.help_button = QPushButton("💡 Ayuda con Errores")
+        self.help_button.clicked.connect(self.show_help)
+        self.help_button.setVisible(False)
+        button_layout.addWidget(self.help_button)
+        
+        # Botón cerrar
+        self.close_button = QPushButton("✅ Cerrar")
+        self.close_button.setEnabled(False)
+        self.close_button.clicked.connect(self.accept)
+        self.close_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                font-weight: bold;
+                padding: 8px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #45A049;
+            }
+            QPushButton:disabled {
+                background-color: #CCCCCC;
+                color: #666666;
+            }
+        """)
+        button_layout.addWidget(self.close_button)
+        
+        layout.addLayout(button_layout)
+        
+        # Variables para tracking de mejores resultados
+        self.best_results = []  # Lista de mejores configuraciones
+        self.max_results = 5    # Número máximo de resultados a mostrar
+        self.chosen_config = None  # Configuración elegida para entrenamiento
+        self.is_cancelled = False  # Flag para cancelación
+        
+        # Agregar mensaje inicial
+        self.results_text.append("🔍 INICIANDO BÚSQUEDA DE PARÁMETROS ÓPTIMOS")
+        self.results_text.append("=" * 60)
+        self.ranking_text.append("⏳ Esperando resultados de la búsqueda...")
+
+    """Actualizar la barra de progreso integrada"""    
+    def update_progress(self, value):
+        self.progress_bar.setValue(value)
+
+    """Manejar la cancelación de la búsqueda"""
+    def cancel_search(self):
+        self.is_cancelled = True
+        self.cancel_button.setEnabled(False)
+        self.cancel_button.setText("⏳ Cancelando...")
+        self.progress_bar.setFormat("Cancelando búsqueda... %p%")
+
+    """Actualizar el mensaje de estado en la barra de progreso"""    
+    def update_status(self, message):
+        self.progress_bar.setFormat(f"{message} %p%")
+        
+    def add_result(self, result):
+        """Añadir nuevo resultado y actualizar ranking"""
+        # Agregar a la lista de resultados en tiempo real
+        iteration = result.get('iteration', '?')
+        score = result['score']
+        
+        self.results_text.append(f"✨ Iteración {iteration}: Score {score:.6f}")
+        self.results_text.ensureCursorVisible()
+        
+        # Actualizar lista de mejores resultados
+        self._update_best_results(result)
+        self._update_ranking_display()
+        
+    def _update_best_results(self, result):
+        """Actualizar la lista de mejores resultados manteniendo solo los top 5"""
+        # Añadir el resultado actual
+        self.best_results.append(result)
+        
+        # Ordenar por score (descendente) y mantener solo los mejores
+        self.best_results.sort(key=lambda x: x['score'], reverse=True)
+        self.best_results = self.best_results[:self.max_results]
+        
+    def _update_ranking_display(self):
+        """Actualizar la visualización del ranking"""
+        self.ranking_text.clear()
+        
+        if not self.best_results:
+            self.ranking_text.append("⏳ Esperando resultados de la búsqueda...")
+            return
+        
+        self.ranking_text.append("🏆 TOP 5 MEJORES CONFIGURACIONES ENCONTRADAS")
+        self.ranking_text.append("=" * 80)
+        
+        for i, result in enumerate(self.best_results):
+            position = i + 1
+            score = result['score']
+            iteration = result.get('iteration', '?')
+            message = result.get('message', 'Sin detalles')
+            
+            # Medallas para los top 3
+            if position == 1:
+                medal = "🥇"
+            elif position == 2:
+                medal = "🥈"
+            elif position == 3:
+                medal = "🥉"
+            else:
+                medal = f"#{position}"
+            
+            # Extraer información adicional del mensaje si está disponible
+            config_info = self._extract_config_info(message)
+            
+            self.ranking_text.append(f"\n{medal} POSICIÓN {position}")
+            self.ranking_text.append(f"   Score: {score:.6f}")
+            self.ranking_text.append(f"   Iteración: {iteration}")
+            
+            if config_info:
+                self.ranking_text.append(f"   Configuración: {config_info}")
+            
+            self.ranking_text.append("-" * 60)
+        
+        self.ranking_text.ensureCursorVisible()
+    
+    def _extract_config_info(self, message):
+        """Extraer información de configuración del mensaje"""
+        try:
+            # Intentar extraer información relevante del mensaje
+            if "MAE:" in message and "RMSE:" in message:
+                mae_start = message.find("MAE:") + 4
+                mae_end = message.find("RMSE:")
+                rmse_start = message.find("RMSE:") + 5
+                rmse_end = message.find("MAPE:", rmse_start)
+                
+                if mae_end > mae_start and rmse_end > rmse_start:
+                    mae = message[mae_start:mae_end].strip().rstrip(',')
+                    rmse = message[rmse_start:rmse_end].strip().rstrip(',')
+                    return f"MAE: {mae}, RMSE: {rmse}"
+            
+            return "Detalles en proceso..."
+        except:
+            return "Configuración disponible"
+    
+    def set_chosen_configuration(self, chosen_result):
+        """Establecer cuál configuración fue elegida para el entrenamiento final"""
+        self.chosen_config = chosen_result
+        self._update_ranking_display_with_chosen()
+    
+    def _update_ranking_display_with_chosen(self):
+        """Actualizar la visualización destacando la configuración elegida"""
+        self.ranking_text.clear()
+        
+        if not self.best_results:
+            return
+        
+        self.ranking_text.append("🏆 TOP 5 MEJORES CONFIGURACIONES ENCONTRADAS")
+        self.ranking_text.append("=" * 80)
+        
+        chosen_found = False
+        
+        for i, result in enumerate(self.best_results):
+            position = i + 1
+            score = result['score']
+            iteration = result.get('iteration', '?')
+            message = result.get('message', 'Sin detalles')
+            
+            # Verificar si esta es la configuración elegida
+            is_chosen = (self.chosen_config and 
+                        abs(score - self.chosen_config.get('score', 0)) < 0.000001)
+            
+            if is_chosen:
+                chosen_found = True
+            
+            # Medallas y marcadores especiales
+            if position == 1:
+                medal = "🥇"
+            elif position == 2:
+                medal = "🥈"
+            elif position == 3:
+                medal = "🥉"
+            else:
+                medal = f"#{position}"
+            
+            if is_chosen:
+                medal += " ⭐ ELEGIDA"
+            
+            config_info = self._extract_config_info(message)
+            
+            self.ranking_text.append(f"\n{medal} POSICIÓN {position}")
+            self.ranking_text.append(f"   Score: {score:.6f}")
+            self.ranking_text.append(f"   Iteración: {iteration}")
+            
+            if config_info:
+                self.ranking_text.append(f"   Configuración: {config_info}")
+            
+            if is_chosen:
+                self.ranking_text.append("   ⭐ Esta configuración fue seleccionada para el modelo final")
+            
+            self.ranking_text.append("-" * 60)
+        
+        # Si la configuración elegida no está en el top 5, mostrarla por separado
+        if self.chosen_config and not chosen_found:
+            self.ranking_text.append(f"\n⭐ CONFIGURACIÓN ELEGIDA (fuera del top 5):")
+            self.ranking_text.append(f"   Score: {self.chosen_config.get('score', 'N/A'):.6f}")
+            self.ranking_text.append(f"   Esta fue la configuración seleccionada para el entrenamiento final")
+            self.ranking_text.append("-" * 60)
+        
+        self.ranking_text.ensureCursorVisible()
+        
+    """Llamado cuando termina la búsqueda"""       
+    def search_finished(self, success, message):
+        # Ocultar botón de cancelar y habilitar cerrar
+        self.cancel_button.setVisible(False)
+        self.close_button.setEnabled(True)
+
+        if success:
+            self.progress_bar.setValue(100)
+            self.progress_bar.setFormat("✅ Búsqueda completada - 100%")
+            self.progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 2px solid #4CAF50;
+                    border-radius: 5px;
+                    text-align: center;
+                    font-weight: bold;
+                }
+                QProgressBar::chunk {
+                    background-color: #4CAF50;
+                    border-radius: 3px;
+                }
+            """)
+            
+            self.results_text.append(f"\n✅ BÚSQUEDA COMPLETADA EXITOSAMENTE")
+            self.results_text.append(f"📊 Se evaluaron configuraciones y se encontraron {len(self.best_results)} candidatos")
+            self.results_text.append("\n🎯 La búsqueda ha finalizado. Revise el ranking de configuraciones arriba.")
+            
+            # Mostrar resumen estadístico
+            if self.best_results:
+                best_score = self.best_results[0]['score']
+                worst_score = self.best_results[-1]['score']
+                self.results_text.append(f"\n📈 Mejor score encontrado: {best_score:.6f}")
+                self.results_text.append(f"📉 Score del 5º lugar: {worst_score:.6f}")
+                improvement = ((best_score - worst_score) / worst_score * 100) if worst_score > 0 else 0
+                self.results_text.append(f"📊 Mejora del mejor vs 5º lugar: {improvement:.2f}%")
+        else:
+            self.progress_bar.setFormat("❌ Error en la búsqueda")
+            self.progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 2px solid #FF6B6B;
+                    border-radius: 5px;
+                    text-align: center;
+                    font-weight: bold;
+                }
+                QProgressBar::chunk {
+                    background-color: #FF6B6B;
+                    border-radius: 3px;
+                }
+            """)
+            
+            # Para errores, mostrar información detallada
+            self.results_text.append(f"\n❌ ERROR EN LA BÚSQUEDA:")
+            self.results_text.append("=" * 70)
+            
+            # Formatear el mensaje de error
+            error_lines = message.split('\n')
+            for line in error_lines:
+                if line.strip():
+                    if line.startswith('Sugerencias:'):
+                        self.results_text.append(f"\n💡 {line}")
+                    elif line.startswith('- '):
+                        self.results_text.append(f"   {line}")
+                    else:
+                        self.results_text.append(f"   {line}")
+            
+            self.results_text.append("=" * 70)
+            self.results_text.append("\n📋 ACCIONES RECOMENDADAS:")
+            self.results_text.append("   • Revise las sugerencias mostradas arriba")
+            self.results_text.append("   • Ajuste los parámetros de la balsa según sea necesario")
+            self.results_text.append("   • Intente la búsqueda nuevamente después de los ajustes")
+            
+            # Mostrar botón de ayuda para errores
+            self.help_button.setVisible(True)
+            
+        self.results_text.ensureCursorVisible()
+    
+    def show_help(self):
+        """Mostrar ayuda adicional para resolver errores"""
+        help_text = """
+        GUÍA DE SOLUCIÓN DE PROBLEMAS:
+
+        🔧 DATOS INSUFICIENTES:
+                • Verifique que tiene al menos 10 registros de precios
+                • Amplíe el rango de fechas de la balsa
+                • Cargue más datos históricos de precios
+
+        📅 DIVISIÓN TRAIN/TEST:
+                • Use al menos 33% del rango para entrenamiento
+                • Ajuste el slider de fecha actual hacia la derecha
+                • Evite fechas muy tempranas que dejen pocos datos
+
+        📊 CALIDAD DE DATOS:
+                • Revise el formato de fechas en los archivos CSV
+                • Elimine registros con valores faltantes
+                • Asegúrese de que los precios sean números válidos
+
+        ⚙️ CONFIGURACIÓN BALSA:
+                • Verifique las fechas de inicio y fin
+                • Asegúrese de que hay datos en ese rango
+                • Considere usar un rango de fechas más amplio
+        """
+        auxTools.show_info_dialog(help_text)

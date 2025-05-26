@@ -42,6 +42,254 @@ class DataPrice:
         self._price_data_test = None
         self._price_data_train = None
 
+    """
+        Prepara los datos de entrenamiento y prueba para la optimización de parámetros
+        
+        Args:
+            percent: Porcentaje para dividir train/test (0.0 - 1.0)
+            start_date: Fecha de inicio
+            end_date: Fecha de fin
+            
+        Returns:
+            tuple: (train_data, test_data) o None si hay error
+        """
+    def prepare_data_for_optimization(self, percent, start_date, end_date):
+    
+        try:
+            if self._price_data is None:
+                self.lastError = cfg.PRICEMODEL_FIT_NO_DATA
+                return None
+        
+            # Información inicial para diagnóstico
+            total_records = len(self._price_data)
+        
+            # Filtrar datos basado en las fechas seleccionadas
+            filtered_data = self._price_data.copy()
+            filtered_data['timestamp'] = pd.to_datetime(filtered_data['timestamp'], errors='coerce')
+            filtered_data = filtered_data.dropna(subset=['timestamp'])
+        
+            records_after_date_parsing = len(filtered_data)
+            invalid_dates = total_records - records_after_date_parsing
+        
+            if start_date:
+                filtered_data = filtered_data[filtered_data['timestamp'].dt.date >= start_date]
+            if end_date:
+                filtered_data = filtered_data[filtered_data['timestamp'].dt.date <= end_date]
+            
+            filtered_data = filtered_data.sort_values(by='timestamp')
+        
+            records_after_date_filter = len(filtered_data)
+            records_filtered_out = records_after_date_parsing - records_after_date_filter
+        
+            # Diagnóstico detallado de datos insuficientes
+            if len(filtered_data) < 10:
+                error_details = []
+                error_details.append(f"Datos insuficientes para optimización (mínimo: 10, encontrados: {len(filtered_data)})")
+                error_details.append(f"Registros originales: {total_records}")
+            
+                if invalid_dates > 0:
+                    error_details.append(f"Registros con fechas inválidas eliminados: {invalid_dates}")
+            
+                if records_filtered_out > 0:
+                    error_details.append(f"Registros fuera del rango de fechas ({start_date} - {end_date}): {records_filtered_out}")
+            
+                if len(filtered_data) > 0:
+                    first_date = filtered_data['timestamp'].min().strftime('%Y-%m-%d')
+                    last_date = filtered_data['timestamp'].max().strftime('%Y-%m-%d')
+                    error_details.append(f"Rango de datos disponibles: {first_date} a {last_date}")
+                else:
+                    error_details.append("No hay datos válidos en el rango especificado")
+            
+                # Sugerencias para el usuario
+                error_details.append("\nSugerencias:")
+                if records_filtered_out > records_after_date_filter:
+                    error_details.append("- Amplíe el rango de fechas de la balsa")
+                if invalid_dates > 0:
+                    error_details.append("- Revise el formato de fechas en los datos de precios")
+                if total_records < 10:
+                    error_details.append("- Cargue más datos históricos de precios")
+            
+                self.lastError = "\n".join(error_details)
+                return None
+        
+            # Calcular fecha de corte
+            delta_days = (end_date - start_date).days
+            if delta_days > 0:
+                current_day_offset = int(delta_days * percent)
+                current_date = start_date + timedelta(days=current_day_offset)
+            else:
+                current_date = start_date
+        
+            # Preparar datos en formato requerido
+            data = pd.DataFrame({
+                'ds': pd.to_datetime(filtered_data['timestamp']),
+                'y': filtered_data['EUR_kg'].astype(float)
+            })
+        
+            train = data[data['ds'].dt.date <= current_date]
+            test = data[data['ds'].dt.date > current_date]
+        
+            # Verificación de datos de entrenamiento insuficientes con diagnóstico detallado
+            if len(train) < 5:
+                error_details = []
+                error_details.append(f"Datos de entrenamiento insuficientes (mínimo: 5, encontrados: {len(train)})")
+                error_details.append(f"Datos totales disponibles: {len(data)}")
+                error_details.append(f"Datos de prueba: {len(test)}")
+                error_details.append(f"Fecha de corte actual: {current_date.strftime('%Y-%m-%d')}")
+                error_details.append(f"Porcentaje de división: {percent*100:.1f}%")
+            
+                if len(data) > 0:
+                    first_date = data['ds'].min().strftime('%Y-%m-%d')
+                    last_date = data['ds'].max().strftime('%Y-%m-%d')
+                    error_details.append(f"Rango de datos: {first_date} a {last_date}")
+            
+                error_details.append("\nSugerencias:")
+                if len(data) >= 5:
+                    error_details.append("- Ajuste el slider de fecha actual para incluir más datos en entrenamiento")
+                    new_percent = max(0.1, 5.0 / len(data))
+                    error_details.append(f"- Use al menos {new_percent*100:.1f}% del rango de fechas para entrenamiento")
+                else:
+                    error_details.append("- Cargue más datos históricos de precios")
+                    error_details.append("- Amplíe el rango de fechas de la balsa")
+            
+                self.lastError = "\n".join(error_details)
+                return None
+        
+            # Guardar para uso posterior
+            self._last_train_data = train.copy()
+            self._last_test_data = test.copy()
+        
+            return train, test
+        
+        except Exception as e:
+            self.lastError = f"Error preparando datos: {str(e)}"
+            return None
+
+    """
+        Ejecuta la búsqueda de parámetros óptimos con callback de progreso
+        
+        Args:
+            train_data: Datos de entrenamiento
+            test_data: Datos de prueba
+            n_iterations: Número de iteraciones
+            progress_callback: Función callback para reportar progreso
+            
+        Returns:
+            list: Resultados ordenados por score
+    """   
+    def run_parameter_optimization(self, train_data, test_data, n_iterations=100, progress_callback=None):
+       
+        try:
+            results = self.find_optimal_configuration(
+                train=train_data,
+                test=test_data,
+                max_window=len(train_data)//2,
+                n_iterations=n_iterations,
+                fixed_stats=None,
+                fixed_windows=None,
+                fixed_params=None,
+                lags=53
+            )
+            
+            # Guardar resultados para uso posterior
+            self._optimal_results = results
+            return results
+            
+        except Exception as e:
+            self.lastError = f"Error en optimización: {str(e)}"
+            return None
+        
+    """
+        Entrena el modelo final con los mejores parámetros encontrados
+        
+        Args:
+            best_results: Resultados de la optimización (opcional, usa los últimos si no se especifica)
+            
+        Returns:
+            bool: True si el entrenamiento fue exitoso
+        """
+    def train_final_model(self, best_results=None):
+        
+        try:
+            if self._last_train_data is None or self._last_test_data is None:
+                self.lastError = "No hay datos preparados para entrenar"
+                return False
+            
+            # Usar los mejores resultados disponibles
+            if best_results is None:
+                if self._optimal_results is None or len(self._optimal_results) == 0:
+                    self.lastError = "No hay resultados de optimización disponibles"
+                    return False
+                best_results = self._optimal_results[0]
+            
+            train = self._last_train_data
+            test = self._last_test_data
+            
+            # Extraer mejores parámetros
+            best_stats = best_results['stats']
+            best_windows = best_results['windows']
+            best_params = best_results['params']
+            
+            # Ajustar ventanas si es necesario
+            max_possible_window = len(train) - 1
+            if max_possible_window < max(best_windows):
+                scale_factor = max_possible_window / max(best_windows)
+                best_windows = [max(1, int(w * scale_factor)) for w in best_windows]
+                if len(set(best_windows)) < len(best_windows):
+                    best_windows = [1, 2, 3, 4]
+            
+            # Configurar modelo
+            window_features = RollingFeatures(
+                stats=best_stats,
+                window_sizes=best_windows
+            )
+            
+            regressor = LGBMRegressor(**best_params)
+            
+            forecaster = ForecasterRecursive(
+                regressor=regressor,
+                lags=min(53, len(train)-1),
+                window_features=window_features
+            )
+            
+            # Entrenar
+            y_train = pd.Series(
+                data=train['y'].values,
+                index=pd.DatetimeIndex(train['ds']),
+                name='EUR_kg'
+            )
+            
+            forecaster.fit(y=y_train)
+            predictions = forecaster.predict(steps=len(test))
+            
+            # Generar fechas futuras
+            last_date = train['ds'].iloc[-1]
+            future_dates = pd.date_range(
+                start=last_date,
+                periods=len(test),
+                freq='W'
+            )
+            
+            # Guardar resultados
+            self._price_data_forescast = pd.DataFrame({
+                'ds': future_dates[:len(predictions)],
+                'y': predictions.values
+            })
+            
+            return True
+            
+        except Exception as e:
+            self.lastError = f"Error entrenando modelo final: {str(e)}"
+            return False
+
+    def get_train_test_data(self):
+        """Retorna los últimos datos de entrenamiento y prueba preparados"""
+        return self._last_train_data, self._last_test_data
+    
+    def get_optimization_results(self):
+        """Retorna los últimos resultados de optimización"""
+        return self._optimal_results
+
     # Se parsea el dataframe de precios y se convierte a un formato adecuado para su uso
     # Se espera que el dataframe contenga las columnas 'Year', 'Week' y 'EUR_kg'
     def parsePrice(self, data):
