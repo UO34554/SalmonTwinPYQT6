@@ -389,6 +389,8 @@ class dashBoardController:
             })
             # Concatenar los datos históricos con el punto interpolado
             historical_data = pd.concat([before_data, interpolated_data], ignore_index=True)
+            # Asegurar formato uniforme
+            historical_data['ds'] = pd.to_datetime(historical_data['ds'])
             return historical_data
         except Exception as e:
             auxTools.show_error_message(cfg.DASHBOARD_TEMP_FILTER_ERROR_MSG.format(error=str(e)))
