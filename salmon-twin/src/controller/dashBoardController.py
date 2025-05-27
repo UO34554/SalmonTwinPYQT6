@@ -31,6 +31,10 @@ class dashBoardController:
         self.growthModel = GrowthModel()       
         self.lastRaftName = None
 
+        # Inicializar referencias a sliders (se crearán al dibujar la balsa)
+        self.dateSliderCurrent = None
+        self.dateSliderForecast = None
+
         # --- Inicialización de la vista ---        
         # Configura el idioma a español (España) para las fechas
         locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')        
@@ -197,17 +201,24 @@ class dashBoardController:
             else:
                 sliderValue = self.dateSliderCurrent.value()
             if sliderValue==0:
-                auxTools.show_error_message(cfg.DASHBOARD_NO_FORESCAST_PERIOD_ERROR)
+                auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_PERIOD_ERROR)
                 return
             
+            # Guardar el valor del slider en la balsa como porcentaje
             raft.setPerCentage(sliderValue)
             perCent = raft.getPerCentage()/1000
-            # Filtrar los datos de temperatura de entrenamiento con la fecha inicial y hasta la fecha actual
+
+            # Calcular fecha de inicio de predicción
             delta_days = (raft.getEndDate() - raft.getStartDate()).days
             forescast_start_date = raft.getStartDate() + timedelta(delta_days * perCent)
+
             # Dias de predicción
-            forescastDays = (raft.getEndDate() - forescast_start_date).days 
-            dataTemp = dataTemp[dataTemp['ds'].apply(lambda x: pd.Timestamp(x) <= pd.Timestamp(forescast_start_date))]            
+            forescastDays = (raft.getEndDate() - forescast_start_date).days
+
+            dataTemp = self._filter_and_interpolate_temperature_data(dataTemp, forescast_start_date)
+            if dataTemp is None:
+                auxTools.show_error_message(cfg.DASHBOARD_TEMP_FILTER_ERROR)
+                return         
             data_forecast = self.tempModel.fitTempData(dataTemp,forescastDays)
             if data_forecast is not None:
                 raft.setTemperatureForecast(data_forecast)
@@ -233,7 +244,7 @@ class dashBoardController:
         # Llamar al método fit_price con las fechas específicas
         if self.dateSliderCurrent is None:
             sliderValue = 0
-            auxTools.show_error_message(cfg.DASHBOARD_NO_FORESCAST_PERIOD_ERROR)
+            auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_PERIOD_ERROR)
             return
         else:
             sliderValue = self.dateSliderCurrent.value()
@@ -264,7 +275,7 @@ class dashBoardController:
     
         # Verificar slider
         if self.dateSliderCurrent is None:
-            auxTools.show_error_message(cfg.DASHBOARD_NO_FORESCAST_PERIOD_ERROR)
+            auxTools.show_error_message(cfg.DASBOARD_NO_TEMP_PERIOD_ERROR)
             return
     
         # Calcular porcentaje
@@ -319,6 +330,70 @@ class dashBoardController:
         self.search_dialog = None
 
     # --- Métodos de la lógica de negocio
+
+    """
+    Filtrar datos de temperatura por fecha y realizar interpolación lineal
+    usando np.interp cuando la fecha de inicio de predicción cae entre dos puntos mensuales
+    
+    Args:
+        dataTemp: DataFrame con datos de temperatura
+        forescast_start_date: Fecha de inicio para la predicción
+        
+    Returns:
+        DataFrame filtrado con punto interpolado si es necesario
+    """
+    def _filter_and_interpolate_temperature_data(self, dataTemp, forescast_start_date):
+        try:
+             # Crear copia para evitar modificar el original
+            filtered_data = dataTemp.copy()        
+            # Asegurar que 'ds' esté en formato datetime
+            filtered_data['ds'] = pd.to_datetime(filtered_data['ds'], errors='coerce')        
+            # Eliminar valores NaT
+            filtered_data = filtered_data.dropna(subset=['ds'])        
+            # Verificar que tenemos datos después de la limpieza
+            if filtered_data.empty:
+                raise ValueError("No hay datos válidos después de la conversión de fechas")            
+            # Verificar si la fecha exacta existe en los datos
+            if hasattr(forescast_start_date, 'date'):          
+                forecast_date = forescast_start_date.date()        
+            else:
+                forecast_date = forescast_start_date
+            exact_match = filtered_data[filtered_data['ds'].dt.date == forecast_date]
+            forecast_timestamp = pd.Timestamp(forecast_date)
+            if not exact_match.empty:
+                # Si existe la fecha exacta, usar los datos hasta esa fecha (incluyéndola)
+                historical_data = filtered_data[filtered_data['ds'] <= forecast_timestamp]                
+                return historical_data
+            # Si no existe fecha exacta, necesitamos interpolar
+            # Filtrar datos anteriores (estrictamente menores) a la fecha de inicio de predicción
+            before_data = filtered_data[filtered_data['ds'] < forecast_timestamp]
+            # Filtrar datos posteriores (estrictamente mayores) a la fecha de inicio de predicción
+            after_data = filtered_data[filtered_data['ds'] > forecast_timestamp]
+            if before_data.empty:
+                raise ValueError(f"No hay datos de temperatura antes de {forecast_date}")
+            if after_data.empty:
+                raise ValueError(f"No hay datos de temperatura después de {forecast_date}")
+            # Obtener los puntos para interpolación
+            before_point = before_data.iloc[-1]  # Último punto antes
+            after_point = after_data.iloc[0]     # Primer punto después
+            # Convertir fechas a timestamps numéricos para interpolación
+            x_points = np.array([before_point['ds'].timestamp(), after_point['ds'].timestamp()])
+            y_points = np.array([before_point['y'], after_point['y']])
+            x_target = forecast_timestamp.timestamp()
+            # Interpolar el valor de temperatura para la fecha de inicio de predicción
+            interpolated_value = np.interp(x_target, x_points, y_points)
+            # Crear un DataFrame con el punto interpolado
+            interpolated_data = pd.DataFrame({
+                'ds': [forescast_start_date],
+                'y': [interpolated_value]
+            })
+            # Concatenar los datos históricos con el punto interpolado
+            historical_data = pd.concat([before_data, interpolated_data], ignore_index=True)
+            return historical_data
+        except Exception as e:
+            auxTools.show_error_message(cfg.DASHBOARD_TEMP_FILTER_ERROR_MSG.format(error=str(e)))
+            return None        
+
     def _save_raft_temperature(self):
         if self.lastRaftName is None:
            raft = self.choice_raft_list_dialog()
