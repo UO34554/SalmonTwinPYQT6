@@ -45,10 +45,18 @@ class GrowthModel:
     def thyholdt_growth(self, dataHistoricalTemp, dataForescastTemp, alpha, beta, mu, mortality_rate, initial_weight, initial_number_fishes):
        # Crea una copia del DataFrame y reinicia los índices para asegurar que sean 0, 1, 2...
         historicalGrowth = dataHistoricalTemp.copy().reset_index(drop=True)
+        last_historicalGrowth = historicalGrowth['ds'].iloc[-1]
         forescastGrowth = dataForescastTemp.copy().reset_index(drop=True)
         # Convertir las columnas 'ds' a formato datetime
+        # Asegurar frecuencia mensual en ambos DataFrames
         historicalGrowth['ds'] = pd.to_datetime(historicalGrowth['ds'])
+        historicalGrowth = historicalGrowth.set_index('ds').resample('MS').mean().reset_index()
         forescastGrowth['ds'] = pd.to_datetime(forescastGrowth['ds'])
+        forescastGrowth = forescastGrowth.set_index('ds').resample('MS').mean().reset_index()
+        # Eliminar del pronóstico cualquier fecha que ya exista en el histórico
+        fechas_historicas = set(historicalGrowth['ds'])
+        forescastGrowth = forescastGrowth[~forescastGrowth['ds'].isin(fechas_historicas)].reset_index(drop=True)                
+
         # Fecha inicial
         start_date = historicalGrowth['ds'].iloc[0]
         growth_factor = 0
@@ -68,47 +76,40 @@ class GrowthModel:
         # Calculo del modelo de crecimiento histórico
         for i in range(len(historicalGrowth)):
             # Calcula el tiempo en meses desde la fecha inicial
-            date_inc = (historicalGrowth.loc[i,'ds'] - start_date).days / 30
+            delta = pd.to_datetime(historicalGrowth.loc[i, 'ds']) - pd.to_datetime(start_date)
+            # se convierte a meses
+            # Aproximación de 365.24 / 12 = 30.44 días por mes
+            date_inc = delta.total_seconds() / (30.44 * 24 * 3600)
             # Calcula la tasa de crecimiento usando la función de Thyholdt
             f = self._thyholdt_function(date_inc, historicalGrowth.loc[i,'y'], alpha, beta, mu)           
-            historicalGrowth.loc[i,'function'] = f            
+            historicalGrowth.loc[i,'function'] = f
+            number_fishes = self._mortality(initial_number_fishes, mortality_rate, date_inc)            
             # Calcula el factor de crecimiento usando el peso inicial y la función de crecimiento y el factor de crecimiento del mes anterior
             growth_factor = growth_factor + (1 + f) * initial_weight
             # Limita el factor de crecimiento al peso máximo asintótico
             if growth_factor > alpha:
                 growth_factor = alpha
             historicalGrowth.loc[i,'growth'] = growth_factor
-            # Calcula el número de peces
-            number_fishes = self._mortality(initial_number_fishes, mortality_rate, date_inc)
             historicalGrowth.loc[i,'number_fishes'] = number_fishes
             # Calcula el peso total de la biomasa en KG           
-            historicalGrowth.loc[i,'biomass'] = growth_factor * number_fishes / 1000.0
-
-        # Inicializa el crecimiento y el número de peces para la predicción        
-        initial_number_fishes = historicalGrowth.iloc[-1]['number_fishes']
-        last_growth_factor = historicalGrowth.iloc[-1]['growth']
-        last_historical_date = historicalGrowth.iloc[-1]['ds']
-        last_historical_function = historicalGrowth.iloc[-1]['function']
-
-        # Reducir la resolución de la predicción de días a meses
-        forescastGrowth['ds'] = pd.to_datetime(forescastGrowth['ds'].dt.to_period('M').dt.to_timestamp())
-        # Eliminar duplicados y mantener la primera ocurrencia
-        forescastGrowth = forescastGrowth.drop_duplicates(subset=['ds'], keep='first')
-        forescastGrowth = forescastGrowth.copy().reset_index(drop=True)
+            historicalGrowth.loc[i,'biomass'] = growth_factor * number_fishes / 1000.0        
 
         # Calculo del modelo de crecimiento futuro
         for i in range(len(forescastGrowth)):
             # Calcula el tiempo en meses desde la fecha inicial
-            date_inc = (forescastGrowth.loc[i,'ds'] - last_historical_date).days / 30
+            delta = pd.to_datetime(forescastGrowth.loc[i, 'ds']) - pd.to_datetime(start_date)
+            # se convierte a meses
+            # Aproximación de 365.24 / 12 = 30.44 días por mes
+            date_inc = delta.total_seconds() / (30.44 * 24 * 3600)
             
-            f = self._thyholdt_function(date_inc, forescastGrowth.loc[i,'yhat'], alpha, beta, mu)       
-            
-            # Calcula el factor de crecimiento usando el peso inicial y la función de crecimiento y el factor de crecimiento del mes anterior
-            if i == 0:
-                growth_factor = last_growth_factor
-                f = last_historical_function
-            else:
+            if i > -1:
+                f = self._thyholdt_function(date_inc, forescastGrowth.loc[i,'yhat'], alpha, beta, mu)
                 growth_factor = growth_factor + (1 + f) * initial_weight
+                number_fishes = self._mortality(initial_number_fishes, mortality_rate, date_inc)
+            else:
+                f = historicalGrowth.iloc[-1]['function']
+                growth_factor = historicalGrowth.iloc[-1]['growth']
+                number_fishes = historicalGrowth.iloc[-1]['number_fishes']
 
             # Limita el factor de crecimiento al peso máximo asintótico
             if growth_factor > alpha:
@@ -116,11 +117,30 @@ class GrowthModel:
 
             forescastGrowth.loc[i,'function'] = f 
             forescastGrowth.loc[i,'growth'] = growth_factor
-            # Calcula el número de peces
-            number_fishes = self._mortality(initial_number_fishes, mortality_rate, date_inc)
             forescastGrowth.loc[i,'number_fishes'] = number_fishes
             # Calcula el peso total de la biomasa en KG           
             forescastGrowth.loc[i,'biomass'] = growth_factor * number_fishes / 1000.0
+
+        # --- Añadir el punto de unión intermedio SOLO para la gráfica ---
+        if not (last_historicalGrowth.day == 1 and last_historicalGrowth.hour == 0 and last_historicalGrowth.minute == 0):
+            # Interpolamos la biomasa y otros valores entre el último punto histórico y el primer punto forecast
+            # Tomamos el último punto histórico y el primer punto forecast
+            last_hist = historicalGrowth.iloc[-1]
+            first_fore = forescastGrowth.iloc[0]
+            # Interpolación lineal usando numpy para cada valor
+            x = np.array([last_hist['ds'].toordinal(), first_fore['ds'].toordinal()])
+            union_x = last_historicalGrowth.toordinal()
+            union_point = {
+                'ds': last_historicalGrowth,
+                'y': np.interp(union_x, x, [last_hist['y'], first_fore['yhat']]),
+                'function': np.interp(union_x, x, [last_hist['function'], first_fore['function']]),
+                'growth': np.interp(union_x, x, [last_hist['growth'], first_fore['growth']]),
+                'number_fishes': np.interp(union_x, x, [last_hist['number_fishes'], first_fore['number_fishes']]),
+                'biomass': np.interp(union_x, x, [last_hist['biomass'], first_fore['biomass']])
+            }
+            # Añadir el punto de unión al DataFrame histórico para la gráfica
+            historicalGrowth = pd.concat([historicalGrowth, pd.DataFrame([union_point])], ignore_index=True)
+            forescastGrowth = pd.concat([pd.DataFrame([union_point]), forescastGrowth], ignore_index=True)
 
         return historicalGrowth, forescastGrowth
     

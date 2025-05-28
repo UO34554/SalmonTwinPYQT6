@@ -82,13 +82,31 @@ class dashBoardController:
             # Eliminar valores NaT antes de filtrar
             df_temperature = df_temperature.dropna(subset=['ds'])
             # Filtrar los datos de temperatura con la fecha inicial y la fecha actual
+            df_temperature = df_temperature[(df_temperature['ds'].dt.date >= raft.getStartDate())]
+            if df_temperature is None or df_temperature.empty:
+                auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_DATA_ERROR)
+                return
+            # Implementar la predicción del crecimiento del salmón según indica el slider
+            if self.dateSliderCurrent is None:
+                sliderValue = 0
+            else:
+                sliderValue = self.dateSliderCurrent.value()
+            if sliderValue==0:
+                auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_PERIOD_ERROR)
+                return
+            # Guardar el valor del slider en la balsa como porcentaje
+            raft.setPerCentage(sliderValue)
+            # Calcular fecha de inicio de predicción
+            # El porcentaje se divide por 1000 para ajustarlo al modelo de crecimiento
             percent = raft.getPerCentage()
             delta_days = (raft.getEndDate() - raft.getStartDate()).days
             days = int(delta_days * percent / 1000)
             fecha_actual = raft.getStartDate() + timedelta(days)
-            df_temperature = df_temperature[(df_temperature['ds'].dt.date >= raft.getStartDate()) & 
-                                            (df_temperature['ds'].dt.date <= fecha_actual)]            
-        
+            df_temperature = self._filter_and_interpolate_temperature_data(df_temperature, fecha_actual)
+            if df_temperature is None or df_temperature.empty:
+                auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_DATA_ERROR)
+                return
+            
             # Parámetros del modelo Thyholdt (estos valores pueden ser ajustados según tus necesidades)
             alpha = 7000.0                                  # Peso máximo asintótico en gramos (7kg)
             beta = 0.02004161                               # Coeficiente de pendiente
@@ -99,10 +117,14 @@ class dashBoardController:
             
             # Aplicar el modelo de crecimiento de Thyholdt devuelve el peso en KG
             df_forecast_temperature = raft.getTemperatureForecast()
+            df_forecast_temperature['ds'] = pd.to_datetime(df_forecast_temperature['ds'], errors='coerce')
+            df_forecast_temperature = df_forecast_temperature.dropna(subset=['ds'])           
+            df_forecast_temperature = df_forecast_temperature[(df_forecast_temperature['ds'].dt.date >= fecha_actual)]
             if df_forecast_temperature is None or df_forecast_temperature.empty:
                 # Mostrar un mensaje de error temporal
                 auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_FORECAST_DATA_ERROR)
-                return
+                return            
+            # Aplicar el modelo de crecimiento de Thyholdt
             growth_data, growth_data_forescast = self.growthModel.thyholdt_growth(df_temperature, df_forecast_temperature,
                                                     alpha, 
                                                     beta, 
@@ -289,14 +311,14 @@ class dashBoardController:
             self.priceModel, perCent, start_date, end_date, n_iterations=100
         )
 
-        # Conectar señales (SIN popup molesto)
+        # Conectar señales
         self.search_worker.progress_updated.connect(self.search_dialog.update_progress)
         self.search_worker.status_updated.connect(self.search_dialog.update_status)
         self.search_worker.result_found.connect(self.search_dialog.add_result)
         self.search_worker.finished_signal.connect(self._on_search_finished)
         self.search_worker.finished_signal.connect(self.search_dialog.search_finished)
 
-        # Conectar cancelación al botón integrado (NO popup)
+        # Conectar cancelación al botón integrado
         self.search_dialog.cancel_button.clicked.connect(self.search_worker.stop)
         self.search_dialog.cancel_button.clicked.connect(self.search_dialog.cancel_search)
 
