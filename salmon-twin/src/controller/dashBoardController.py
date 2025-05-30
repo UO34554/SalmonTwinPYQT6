@@ -1709,6 +1709,7 @@ class dashBoardController:
                     min_y = min(y.min(), self.y_forecast.min())
                     max_y = max(y.max(), self.y_forecast.max())
                 else:
+                    self.x_forecast = np.array([])
                     # Si no hay predicción, usar solo los datos históricos
                     min_x = x.min()
                     max_x = x.max()
@@ -1737,7 +1738,10 @@ class dashBoardController:
 
                 # Añadir línea vertical para la fecha actual (usa un color diferente)
                 self.date_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='b', width=2, style=Qt.DashLine))
-                initial_pos = self.x_forecast[0]
+                if self.x_forecast.size > 0:
+                    initial_pos = self.x_forecast[0]
+                else:
+                    initial_pos = x[0]  # Usa el primer valor histórico si no hay predicción
                 self.date_vline.setPos(initial_pos)
                 # Añadir línea vertical para la predicción con la fecha actual (usa un color diferente)                
                 self.date_vline_forescast = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine))

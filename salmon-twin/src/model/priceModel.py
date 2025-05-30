@@ -403,6 +403,7 @@ class DataPrice:
         else:
             param_grid = fixed_params
 
+        # Los lags se deberían variar entre 1 y el tamaño de train - 1?
         if not lags is None:
             # Asegurarse de que lags no exceda el tamaño de train
             lags=min(lags,len(train)-1)
@@ -411,23 +412,25 @@ class DataPrice:
         wn.filterwarnings('ignore', category=Warning)
     
         # Variables para almacenar los mejores resultados
+        '''
         best_mae = float('inf')
         best_rmse = float('inf')
         best_mape = float('inf')
         best_dir_acc = 0.0
+        '''
         best_score = 0.0  # Inicializar con 0 ya que queremos maximizarlo
+        '''
         best_stats = None
         best_windows = None
         best_params = None
-    
+        '''
         print(f"Probando {n_iterations} configuraciones aleatorias completas...")
     
         # Almacenar resultados
         results = []
     
         # Búsqueda aleatoria
-        best = False
-        stop = False
+        best = False        
         for i in tqdm(range(n_iterations)):
             try:
                 # 1. Seleccionar estadísticas aleatorias (4 elementos)
@@ -508,15 +511,16 @@ class DataPrice:
 
                 # Ponderaciones según importancia (deben sumar 1.0)
                 score = (
-                    0.60 * (1.0 - mae/5.0) +            # MAE normalizado (menor es mejor)
+                    0.15 * (1.0 - mae/5.0) +            # MAE normalizado (menor es mejor)
                     0.15 * (1.0 - rmse/8.0) +           # RMSE normalizado (menor es mejor)
                     0.15 * (1.0 - mape_value/100) +     # MAPE (menor es mejor)
-                    0.10 * (dir_acc/100)                # Acierto direccional (mayor es mejor)
+                    0.55 * (dir_acc/100)                # Acierto direccional (mayor es mejor)
                 )
 
                 # Actualizar si esta configuración es mejor
                 if score > best_score:  # Nota: ahora buscamos maximizar score, no minimizar MAE
                     best_score = score
+                    '''
                     best_mae = mae
                     best_rmse = rmse
                     best_mape = mape_value
@@ -524,6 +528,7 @@ class DataPrice:
                     best_stats = stats
                     best_windows = windows
                     best_params = params
+                    
                     print(f"\nNueva mejor configuración (score: {best_score:.6f}) (iter {i+1}/{n_iterations}):")
                     print(f"MAE: {best_mae:.4f}, RMSE: {best_rmse:.4f}, MAPE: {best_mape:.2f}%, Dir: {best_dir_acc:.2f}%")                    
                     print(f"Stats: {best_stats}")
@@ -532,7 +537,7 @@ class DataPrice:
                         print(f"Params: n_est={best_params['n_estimators']}, lr={best_params['learning_rate']}, depth={best_params['max_depth']}")
                     else:
                         print(f"Params: {fixed_params}")
-            
+                    '''
                     # 6. Guardar resultados
                     results.append({
                         'score':    score,
@@ -559,7 +564,7 @@ class DataPrice:
                 continue
     
         # Ordenar y mostrar mejores resultados
-        results.sort(key=lambda x: x['score'],reverse=True)
+        results.sort(key=lambda x: x['score'],reverse=True)        
         print("\nMejores 5 configuraciones encontradas:")
         for i, result in enumerate(results[:5]):
             print(f"{i+1}. (score: {result['score']:.4f}) Stats: {result['stats']}")
