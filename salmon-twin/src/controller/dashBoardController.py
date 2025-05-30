@@ -302,21 +302,22 @@ class dashBoardController:
     
         # Calcular porcentaje
         perCent = raft.getPerCentage() / 1000
-    
-        # Crear y mostrar diálogo de progreso
-        self.search_dialog = PredictorSearchDialog(self._view)
 
         # Crear worker thread
         self.search_worker = PricePredictorSearchWorker(
-            self.priceModel, perCent, start_date, end_date, n_iterations=100
+            self.priceModel, perCent, start_date, end_date, n_iterations=1000
         )
+
+        # Crear y mostrar diálogo de progreso
+        self.search_dialog = PredictorSearchDialog(self._view,self.search_worker)
 
         # Conectar señales
         self.search_worker.progress_updated.connect(self.search_dialog.update_progress)
         self.search_worker.status_updated.connect(self.search_dialog.update_status)
+        self.search_worker.print_message.connect(self.search_dialog.print_mensage)
         self.search_worker.result_found.connect(self.search_dialog.add_result)
         self.search_worker.finished_signal.connect(self._on_search_finished)
-        self.search_worker.finished_signal.connect(self.search_dialog.search_finished)
+        self.search_worker.finished_signal.connect(self.search_dialog.search_finished)        
 
         # Conectar cancelación al botón integrado
         self.search_dialog.cancel_button.clicked.connect(self.search_worker.stop)
@@ -325,11 +326,11 @@ class dashBoardController:
         # Iniciar worker thread
         self.search_worker.start()
 
-        # Mostrar diálogo (SIN popup molesto)
+        # Mostrar diálogo
         self.search_dialog.exec()
 
-    def _on_search_finished(self, success, message):
-        """Callback cuando termina la búsqueda"""
+    # Callback cuando termina la búsqueda
+    def _on_search_finished(self, success, message):        
         if success:
             # Actualizar la balsa con los nuevos datos
             raft = self.raftCon.get_raft_by_name(self.lastRaftName)
@@ -339,7 +340,7 @@ class dashBoardController:
             
             if self.raftCon.update_rafts_price_forecast(raft):
                 # Solo mostrar popup para éxito
-                auxTools.show_info_dialog("Búsqueda de predictor completada exitosamente")
+                auxTools.show_info_dialog("Actualizada la balsa con los nuevos datos")
             else:
                 # Solo mostrar popup para errores críticos de actualización
                 auxTools.show_error_message("Error actualizando la balsa con los nuevos datos")
@@ -1798,12 +1799,15 @@ class dashBoardController:
         elif file_type == "excel":
             # Implementar la carga de datos desde un archivo Excel 
             pass
-  
+
+# Clase para el hilo de búsqueda de parámetros óptimos del predictor de precios
+# Esta clase se encarga de ejecutar la búsqueda de parámetros óptimos en un hilo separado para no bloquear la interfaz de usuario.  
 class PricePredictorSearchWorker(QThread):
     # Señales para comunicación con la interfaz principal
+    print_message = Signal(str)
     progress_updated = Signal(int)
     status_updated = Signal(str)
-    result_found = Signal(dict)
+    result_found = Signal(int, dict)
     finished_signal = Signal(bool, str)
     
     def __init__(self, price_model, percent, start_date, end_date, n_iterations=100):
@@ -1846,8 +1850,8 @@ class PricePredictorSearchWorker(QThread):
                     return
             
             # 3. Ejecutar optimización con monitoreo de progreso
-            self.status_updated.emit("Ejecutando búsqueda de parámetros óptimos...")
-            results = self._run_optimization_with_progress(train_data, test_data)
+            self.print_message.emit("Ejecutando búsqueda de parámetros óptimos...")
+            results = self._run_optimization_with_progress(train_data, test_data, progress_callback=self._progress_callback)
             
             if self.should_stop:
                 self.finished_signal.emit(False, "Búsqueda cancelada por el usuario")
@@ -1855,11 +1859,12 @@ class PricePredictorSearchWorker(QThread):
             
             if results and len(results) > 0:
                 # 4. Entrenar modelo final
-                self.status_updated.emit("Entrenando modelo final con mejores parámetros...")
+                self.print_message.emit("Entrenando modelo final con mejores parámetros...")
+                self.print_message.emit(f"Mejores parámetros encontrados: {results[0]}")
                 success = self.price_model.train_final_model(results[0])
                 
                 if success:
-                    self.finished_signal.emit(True, "Búsqueda completada exitosamente")
+                    self.finished_signal.emit(True, "Modelo entrenado correctamente")
                 else:
                     self.finished_signal.emit(False, f"Error entrenando modelo final: {self.price_model.lastError}")
             else:
@@ -1868,73 +1873,36 @@ class PricePredictorSearchWorker(QThread):
         except Exception as e:
             self.finished_signal.emit(False, f"Error durante la búsqueda: {str(e)}")
 
-    def _run_optimization_with_progress(self, train_data, test_data):
-        """Ejecutar optimización con monitoreo de progreso usando monkey patching"""
-        original_print = print
-        iteration_count = 0
-        best_score = 0.0
-        
-        def progress_print(*args, **kwargs):
-            nonlocal iteration_count, best_score
-            
-            # Verificar si se debe detener
-            with QMutexLocker(self.mutex):
-                if self.should_stop:
-                    return
-            
-            message = ' '.join(map(str, args))
-            
-            # Detectar nueva mejor configuración
-            if "Nueva mejor configuración" in message:
-                iteration_count += 1
-                progress = min(int((iteration_count / self.n_iterations) * 100), 100)
-                self.progress_updated.emit(progress)
-                self.status_updated.emit(f"Evaluando configuración {iteration_count}/{self.n_iterations}")
-                
-                # Parsear información del resultado
-                if "score:" in message:
-                    try:
-                        score_part = message.split("score:")[1].split(")")[0].strip()
-                        score = float(score_part)
-                        if score > best_score:
-                            best_score = score
-                            
-                            # Extraer más información del mensaje
-                            result = {
-                                'score': score,
-                                'iteration': iteration_count,
-                                'message': message,
-                                'raw_output': message
-                            }
-                            self.result_found.emit(result)
-                    except:
-                        pass
-            
-            # Llamar al print original
-            original_print(*args, **kwargs)
-        
-        try:
-            # Reemplazar temporalmente print
-            import builtins
-            builtins.print = progress_print
-            
-            # Ejecutar optimización usando el método del modelo
-            results = self.price_model.run_parameter_optimization(
-                train_data, test_data, self.n_iterations
-            )
-            
-            return results
-            
-        finally:
-            # Restaurar print original
-            builtins.print = original_print
+    # Método de callback para actualizar el progreso
+    def _progress_callback(self, progress, result_dict):        
+        # Actualizar el mensaje de estado con la iteración actual
+        self.status_updated.emit(f"Iteración {progress} de {self.n_iterations}...")
+        # Actualizar la barra de progreso
+        percent = int(100 * (progress) / self.n_iterations)
+        self.progress_updated.emit(percent)
+        # Emitir el resultado directamente a la vista
+        if result_dict is not None:
+            self.result_found.emit(percent, result_dict)
 
+    # Método para ejecutar la optimización con progreso
+    def _run_optimization_with_progress(self, train_data, test_data, progress_callback):
+        # Ejecutar optimización usando el método del modelo
+        results = self.price_model.run_parameter_optimization(
+            train_data, test_data, self.n_iterations,
+            fixed_stats=None, fixed_windows=None,fixed_params=None,lags=None,
+            progress_callback=progress_callback
+        )
+            
+        return results        
+
+# Clase para el diálogo de búsqueda de predictor óptimo para precios
 class PredictorSearchDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, worker=None):
         super().__init__(parent)
         self.setWindowTitle("Búsqueda de Predictor Óptimo")
-        self.setFixedSize(900, 650)
+        self.setFixedSize(1100, 650)
         self.setModal(True)
+        self.worker = worker
         
         # Layout principal
         layout = QVBoxLayout(self)
@@ -2058,6 +2026,17 @@ class PredictorSearchDialog(QDialog):
         self.results_text.append("=" * 60)
         self.ranking_text.append("⏳ Esperando resultados de la búsqueda...")
 
+    # Evento de cierre de la ventana 
+    # si el worker no está en ejecución cierra la ventana,
+    # si está en ejecución no cierra la ventana para evitar problemas de concurrencia
+    def closeEvent(self, event):
+        # Detener el worker si sigue activo antes de cerrar la ventana
+        if self.worker is not None and self.worker.isRunning():
+            auxTools.show_info_dialog("No puedes cerrar la ventana mientras la búsqueda está en curso. Cancela la búsqueda primero.")
+            event.ignore() 
+        else:
+            super().closeEvent(event)
+
     """Actualizar la barra de progreso integrada"""    
     def update_progress(self, value):
         self.progress_bar.setValue(value)
@@ -2068,50 +2047,63 @@ class PredictorSearchDialog(QDialog):
         self.cancel_button.setEnabled(False)
         self.cancel_button.setText("⏳ Cancelando...")
         self.progress_bar.setFormat("Cancelando búsqueda... %p%")
+        self.worker.terminate()  # Terminar el hilo de búsqueda
+        self.close_button.setEnabled(True)  # Habilitar el botón de cerrar        
 
     """Actualizar el mensaje de estado en la barra de progreso"""    
     def update_status(self, message):
         self.progress_bar.setFormat(f"{message} %p%")
-        
-    def add_result(self, result):
+
+    def print_mensage(self, message):
+        print(message)
+
+    def add_result(self, progress, result):
         """Añadir nuevo resultado y actualizar ranking"""
-        # Agregar a la lista de resultados en tiempo real
-        iteration = result.get('iteration', '?')
-        score = result['score']
-        
-        self.results_text.append(f"✨ Iteración {iteration}: Score {score:.6f}")
-        self.results_text.ensureCursorVisible()
-        
-        # Actualizar lista de mejores resultados
-        self._update_best_results(result)
-        self._update_ranking_display()
-        
-    def _update_best_results(self, result):
-        """Actualizar la lista de mejores resultados manteniendo solo los top 5"""
-        # Añadir el resultado actual
+        # Agregar a la lista de resultados en tiempo real        
+        score = result.get('score', 0)
+        mae = result.get('mae', 'N/A')
+        rmse = result.get('rmse', 'N/A')
+        mape = result.get('mape', 'N/A')
+        dir_acc = result.get('dir_acc', 'N/A')
+        stats = result.get('stats', 'N/A')
+        windows = result.get('windows', 'N/A')
+        params = result.get('params', {})
+
+        # Mostrar todos los datos en el área de progreso
+        self.results_text.append(
+            f"✨   {progress}%: Score {score:.6f}\n"
+            f"   MAE: {mae} | RMSE: {rmse} | MAPE: {mape} | Dir: {dir_acc}\n"
+            f"   Stats: {stats}\n"
+            f"   Windows: {windows}\n"
+            f"   Params: {params}\n"
+            + "-"*50
+        )
         self.best_results.append(result)
-        
-        # Ordenar por score (descendente) y mantener solo los mejores
-        self.best_results.sort(key=lambda x: x['score'], reverse=True)
-        self.best_results = self.best_results[:self.max_results]
+        self.best_results.sort(key=lambda x: x.get('score', 0), reverse=True)
+        self.results_text.ensureCursorVisible()
         
     def _update_ranking_display(self):
         """Actualizar la visualización del ranking"""
         self.ranking_text.clear()
-        
+
         if not self.best_results:
             self.ranking_text.append("⏳ Esperando resultados de la búsqueda...")
             return
-        
-        self.ranking_text.append("🏆 TOP 5 MEJORES CONFIGURACIONES ENCONTRADAS")
+
+        self.ranking_text.append("🏆 TOP DE MEJORES CONFIGURACIONES ENCONTRADAS")
         self.ranking_text.append("=" * 80)
-        
+
         for i, result in enumerate(self.best_results):
             position = i + 1
-            score = result['score']
-            iteration = result.get('iteration', '?')
-            message = result.get('message', 'Sin detalles')
-            
+            score = result.get('score', 0)            
+            mae = result.get('mae', 'N/A')
+            rmse = result.get('rmse', 'N/A')
+            mape = result.get('mape', 'N/A')
+            dir_acc = result.get('dir_acc', 'N/A')
+            stats = result.get('stats', 'N/A')
+            windows = result.get('windows', 'N/A')
+            params = result.get('params', {})
+
             # Medallas para los top 3
             if position == 1:
                 medal = "🥇"
@@ -2121,106 +2113,15 @@ class PredictorSearchDialog(QDialog):
                 medal = "🥉"
             else:
                 medal = f"#{position}"
-            
-            # Extraer información adicional del mensaje si está disponible
-            config_info = self._extract_config_info(message)
-            
+
             self.ranking_text.append(f"\n{medal} POSICIÓN {position}")
-            self.ranking_text.append(f"   Score: {score:.6f}")
-            self.ranking_text.append(f"   Iteración: {iteration}")
-            
-            if config_info:
-                self.ranking_text.append(f"   Configuración: {config_info}")
-            
-            self.ranking_text.append("-" * 60)
-        
-        self.ranking_text.ensureCursorVisible()
-    
-    def _extract_config_info(self, message):
-        """Extraer información de configuración del mensaje"""
-        try:
-            # Intentar extraer información relevante del mensaje
-            if "MAE:" in message and "RMSE:" in message:
-                mae_start = message.find("MAE:") + 4
-                mae_end = message.find("RMSE:")
-                rmse_start = message.find("RMSE:") + 5
-                rmse_end = message.find("MAPE:", rmse_start)
-                
-                if mae_end > mae_start and rmse_end > rmse_start:
-                    mae = message[mae_start:mae_end].strip().rstrip(',')
-                    rmse = message[rmse_start:rmse_end].strip().rstrip(',')
-                    return f"MAE: {mae}, RMSE: {rmse}"
-            
-            return "Detalles en proceso..."
-        except:
-            return "Configuración disponible"
-    
-    def set_chosen_configuration(self, chosen_result):
-        """Establecer cuál configuración fue elegida para el entrenamiento final"""
-        self.chosen_config = chosen_result
-        self._update_ranking_display_with_chosen()
-    
-    def _update_ranking_display_with_chosen(self):
-        """Actualizar la visualización destacando la configuración elegida"""
-        self.ranking_text.clear()
-        
-        if not self.best_results:
-            return
-        
-        self.ranking_text.append("🏆 TOP 5 MEJORES CONFIGURACIONES ENCONTRADAS")
-        self.ranking_text.append("=" * 80)
-        
-        chosen_found = False
-        
-        for i, result in enumerate(self.best_results):
-            position = i + 1
-            score = result['score']
-            iteration = result.get('iteration', '?')
-            message = result.get('message', 'Sin detalles')
-            
-            # Verificar si esta es la configuración elegida
-            is_chosen = (self.chosen_config and 
-                        abs(score - self.chosen_config.get('score', 0)) < 0.000001)
-            
-            if is_chosen:
-                chosen_found = True
-            
-            # Medallas y marcadores especiales
-            if position == 1:
-                medal = "🥇"
-            elif position == 2:
-                medal = "🥈"
-            elif position == 3:
-                medal = "🥉"
-            else:
-                medal = f"#{position}"
-            
-            if is_chosen:
-                medal += " ⭐ ELEGIDA"
-            
-            config_info = self._extract_config_info(message)
-            
-            self.ranking_text.append(f"\n{medal} POSICIÓN {position}")
-            self.ranking_text.append(f"   Score: {score:.6f}")
-            self.ranking_text.append(f"   Iteración: {iteration}")
-            
-            if config_info:
-                self.ranking_text.append(f"   Configuración: {config_info}")
-            
-            if is_chosen:
-                self.ranking_text.append("   ⭐ Esta configuración fue seleccionada para el modelo final")
-            
-            self.ranking_text.append("-" * 60)
-        
-        # Si la configuración elegida no está en el top 5, mostrarla por separado
-        if self.chosen_config and not chosen_found:
-            self.ranking_text.append(f"\n⭐ CONFIGURACIÓN ELEGIDA (fuera del top 5):")
-            self.ranking_text.append(f"   Score: {self.chosen_config.get('score', 'N/A'):.6f}")
-            self.ranking_text.append(f"   Esta fue la configuración seleccionada para el entrenamiento final")
-            self.ranking_text.append("-" * 60)
-        
-        self.ranking_text.ensureCursorVisible()
-        
+            self.ranking_text.append(f"   Score: {score:.6f}")        
+            self.ranking_text.append(f"   MAE: {mae} | RMSE: {rmse} | MAPE: {mape} | Dir: {dir_acc}")
+            self.ranking_text.append(f"   Stats: {stats}")
+            self.ranking_text.append(f"   Windows: {windows}")
+            self.ranking_text.append(f"   Params: {params}")
+            self.ranking_text.append("-" * 80)            
+
     """Llamado cuando termina la búsqueda"""       
     def search_finished(self, success, message):
         # Ocultar botón de cancelar y habilitar cerrar
@@ -2252,9 +2153,11 @@ class PredictorSearchDialog(QDialog):
                 best_score = self.best_results[0]['score']
                 worst_score = self.best_results[-1]['score']
                 self.results_text.append(f"\n📈 Mejor score encontrado: {best_score:.6f}")
-                self.results_text.append(f"📉 Score del 5º lugar: {worst_score:.6f}")
+                self.results_text.append(f"📉 Peor score encontrado: {worst_score:.6f}")
                 improvement = ((best_score - worst_score) / worst_score * 100) if worst_score > 0 else 0
-                self.results_text.append(f"📊 Mejora del mejor vs 5º lugar: {improvement:.2f}%")
+                self.results_text.append(f"📊 Mejora del mejor vs el peor: {improvement:.2f}%")
+
+            self._update_ranking_display()
         else:
             self.progress_bar.setFormat("❌ Error en la búsqueda")
             self.progress_bar.setStyleSheet("""
@@ -2294,6 +2197,7 @@ class PredictorSearchDialog(QDialog):
             # Mostrar botón de ayuda para errores
             self.help_button.setVisible(True)
             
+        
         self.results_text.ensureCursorVisible()
     
     def show_help(self):

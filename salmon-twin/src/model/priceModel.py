@@ -165,19 +165,23 @@ class DataPrice:
             self.lastError = f"Error preparando datos: {str(e)}"
             return None
 
-    """
-        Ejecuta la búsqueda de parámetros óptimos con callback de progreso
-        
+    """        
+    Ejecuta la optimización de parámetros del modelo de precios
         Args:
-            train_data: Datos de entrenamiento
-            test_data: Datos de prueba
-            n_iterations: Número de iteraciones
-            progress_callback: Función callback para reportar progreso
-            
+            train_data: DataFrame con datos de entrenamiento
+            test_data: DataFrame con datos de prueba
+            n_iterations: Número de iteraciones para la optimización
+            fixed_stats: Estadísticas fijas a usar (opcional)
+            fixed_windows: Ventanas fijas a usar (opcional)
+            fixed_params: Parámetros fijos del modelo (opcional)
+            lags: Número de lags a usar (opcional)
+            progress_callback: Función de callback para actualizar el progreso (opcional)
         Returns:
-            list: Resultados ordenados por score
-    """   
-    def run_parameter_optimization(self, train_data, test_data, n_iterations=100, progress_callback=None):
+            dict: Resultados de la optimización o None si hay error
+    """    
+    def run_parameter_optimization(self, train_data, test_data, n_iterations=100,
+                               fixed_stats=None, fixed_windows=None, fixed_params=None, lags=None,
+                               progress_callback=None):
        
         try:
             results = self.find_optimal_configuration(
@@ -185,12 +189,12 @@ class DataPrice:
                 test=test_data,
                 max_window=len(train_data)//2,
                 n_iterations=n_iterations,
-                fixed_stats=None,
-                fixed_windows=None,
-                fixed_params=None,
-                lags=53
+                fixed_stats=fixed_stats,
+                fixed_windows=fixed_windows,
+                fixed_params=fixed_params,
+                lags=lags,
+                progress_callback=progress_callback
             )
-            
             # Guardar resultados para uso posterior
             self._optimal_results = results
             return results
@@ -365,7 +369,8 @@ class DataPrice:
         tuple: (mejores_estadísticas, mejores_ventanas, mejores_parámetros, mejor_mae)
     """
     def find_optimal_configuration(self, train, test, max_window, n_iterations=50,
-                                   fixed_stats=None, fixed_windows=None,fixed_params=None,lags=None):    
+                                   fixed_stats=None, fixed_windows=None,fixed_params=None,lags=None,
+                                   progress_callback=None):    
         # Crear serie temporal para entrenamiento
         y_train = pd.Series(
             data=train['y'].values,
@@ -397,6 +402,10 @@ class DataPrice:
             }
         else:
             param_grid = fixed_params
+
+        if not lags is None:
+            # Asegurarse de que lags no exceda el tamaño de train
+            lags=min(lags,len(train)-1)
     
         # Suprimir advertencias
         wn.filterwarnings('ignore', category=Warning)
@@ -417,6 +426,8 @@ class DataPrice:
         results = []
     
         # Búsqueda aleatoria
+        best = False
+        stop = False
         for i in tqdm(range(n_iterations)):
             try:
                 # 1. Seleccionar estadísticas aleatorias (4 elementos)
@@ -470,7 +481,7 @@ class DataPrice:
             
                 forecaster = ForecasterRecursive(
                     regressor=regressor,                    
-                    lags=min(lags,len(train)-1),  # Asegurarse de que lags no exceda el tamaño de train        
+                    lags=lags,
                     window_features=window_features
                 )
             
@@ -522,17 +533,26 @@ class DataPrice:
                     else:
                         print(f"Params: {fixed_params}")
             
-                # 6. Guardar resultados
-                results.append({
-                    'score': score,
-                    'mae': mae,
-                    'rmse': rmse,
-                    'mape': mape_value,
-                    'dir_acc': dir_acc,
-                    'stats': stats,
-                    'windows': windows,
-                    'params': params,                    
-                })
+                    # 6. Guardar resultados
+                    results.append({
+                        'score':    score,
+                        'mae':      mae,
+                        'rmse':     rmse,
+                        'mape':     mape_value,
+                        'dir_acc':  dir_acc,
+                        'stats':    stats,
+                        'windows':  windows,
+                        'params':   params,                    
+                    })
+                    best_result = results[-1].copy()
+                    best = True
+
+                if not progress_callback is None:                    
+                    if best:
+                        best = False
+                        progress_callback(i, best_result)
+                    else:
+                        progress_callback(i, None)         
             
             except Exception as e:
                 print(f"Error en iteración {i+1}: {e}")
@@ -542,7 +562,7 @@ class DataPrice:
         results.sort(key=lambda x: x['score'],reverse=True)
         print("\nMejores 5 configuraciones encontradas:")
         for i, result in enumerate(results[:5]):
-            print(f"{i+1}. (score: {best_score:.4f}) Stats: {result['stats']}")
+            print(f"{i+1}. (score: {result['score']:.4f}) Stats: {result['stats']}")
             print(f"   Windows: {result['windows']}")
 
             if fixed_params is None:
