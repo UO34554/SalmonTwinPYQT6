@@ -1562,20 +1562,20 @@ class dashBoardController:
             plot_widget.setToolTip(None)
 
     #Actualiza los ticks del eje X cuando cambia el rango visible
-    def _update_temperature_axis_ticks(self, range_vals):
+    def _update_temperature_axis_ticks(self, values, range_vals):
         # Obtener el rango visible actual
-        min_x, max_x = range_vals[0]
+        min_x, max_x = range_vals
         x_range = max_x - min_x
     
         # Obtener el ancho del gráfico en píxeles
         plot_width = self._temp_plot_widget.width()
     
         # Calcular cuántos ticks pueden caber basado en el ancho disponible
-        # Asumiendo que cada label necesita aproximadamente 130px para ser legible
-        max_ticks_by_width = max(3, int(plot_width / 130))
+        # Asumiendo que cada label necesita aproximadamente 150px para ser legible
+        max_ticks_by_width = max(3, int(plot_width / 150))
     
         # Filtrar los índices visibles dentro del rango actual
-        visible_indices = np.where((self._temp_x_values >= min_x) & (self._temp_x_values <= max_x))[0]
+        visible_indices = np.where((values >= min_x) & (values <= max_x))[0]
     
         # Determinar si estamos en un nivel de zoom grande
         is_high_zoom = len(visible_indices) < 5 and x_range > 86400  # Al menos un día y pocos puntos visibles
@@ -1588,7 +1588,7 @@ class dashBoardController:
             interpolated_timestamps = np.linspace(min_x, max_x, optimal_tick_count)
         
             # Crear los ticks con las fechas formateadas
-            if plot_width < 500:
+            if plot_width < 600:
                 ticks = [(ts, self._format_date_compact(ts)) for ts in interpolated_timestamps]
             else:
                 ticks = [(ts, self._format_date(ts)) for ts in interpolated_timestamps]
@@ -1602,10 +1602,10 @@ class dashBoardController:
             tick_indices = visible_indices[::step]
         
             # Usar formato de fecha más compacto cuando hay poco espacio
-            if plot_width < 500:
-                ticks = [(self._temp_x_values[i], self._format_date_compact(self._temp_x_values[i])) for i in tick_indices]
+            if plot_width < 600:
+                ticks = [(values[i], self._format_date_compact(values[i])) for i in tick_indices]
             else:
-                ticks = [(self._temp_x_values[i], self._format_date(self._temp_x_values[i])) for i in tick_indices]
+                ticks = [(values[i], self._format_date(values[i])) for i in tick_indices]
         else:
             # No hay puntos visibles
             return
@@ -1653,103 +1653,168 @@ class dashBoardController:
                 df_temperature_forecast = df_temperature_forecast[(df_temperature_forecast['ds'].dt.date >= forescast_start_date)]
             else:
                 df_temperature_forecast = None
-            # Obtener los datos de temperatura de la balsa            
-            df_temperature = raft.getTemperature()
-            # Convertir la columna 'ds' a formato timestamp si no está ya en datetime
-            df_temperature['ds'] = pd.to_datetime(df_temperature['ds'], errors='coerce')
-            # Eliminar valores NaT antes de filtrar
-            df_temperature = df_temperature.dropna(subset=['ds'])
-            # Filtrar los datos de temperatura con la fecha inicial y final de la balsa
-            df_temperature = df_temperature[(df_temperature['ds'].dt.date >= raft.getStartDate()) & (df_temperature['ds'].dt.date <= raft.getEndDate())]
-            if df_temperature.empty:
-                # Mostrar una 'X' roja si no hay datos de temperatura
-                plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
-                self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)
-                return
-            else:
-                # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
-                x = df_temperature['ds'].map(pd.Timestamp.timestamp).values
-                y = df_temperature['y'].values
 
+            # Obtener todos los datos de temperatura
+            df_temperature = raft.getTemperature()
+            df_temperature['ds'] = pd.to_datetime(df_temperature['ds'], errors='coerce')
+            df_temperature = df_temperature.dropna(subset=['ds'])
+
+            # Fechas de la balsa
+            start_date = raft.getStartDate()
+            end_date = raft.getEndDate()
+            delta_days = (end_date - start_date).days
+
+            # Calcular la fecha de inicio del rango previo
+            prev_start_date = start_date - timedelta(days=delta_days)
+
+            # Datos históricos previos a la balsa (mismo rango de días que la balsa)
+            df_hist = df_temperature[(df_temperature['ds'].dt.date >= prev_start_date) & (df_temperature['ds'].dt.date < start_date)]
+            df_hist = df_hist.sort_values('ds')
+            
+             # Datos de la balsa
+            df_balsa = df_temperature[(df_temperature['ds'].dt.date >= start_date) & (df_temperature['ds'].dt.date <= end_date)]
+
+            # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
+            if not df_hist.empty:
+                x_hist = df_hist['ds'].map(pd.Timestamp.timestamp).values
+                y_hist = df_hist['y'].values
+            else:
+                x_hist = np.array([])
+                y_hist = np.array([])
+
+            x_balsa = df_balsa['ds'].map(pd.Timestamp.timestamp).values
+            y_balsa = df_balsa['y'].values
+
+            if df_temperature_forecast is not None and not df_temperature_forecast.empty:
+                # Graficar histórico previo en naranja
+                if x_hist.size > 0:
+                    plot_widget.plot(x_hist, y_hist, pen=pg.mkPen(color='#FFA500', width=2), name="Histórico previo", color='g')
+
+                # Graficar histórico de la balsa en azul
+                plot_widget.plot(x_balsa, y_balsa, pen=pg.mkPen(color='b', width=2), name="Histórico balsa", color='b')
+
+                # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
+                self.x_forecast = df_temperature_forecast['ds'].map(pd.Timestamp.timestamp).values
+                self.y_forecast = df_temperature_forecast['yhat'].values
+
+                # Guardar referencia al widget
+                self._temp_plot_widget = plot_widget
+                
+                # Establecer los ticks iniciales
+                all_x_hist = np.concatenate([x_hist, x_balsa]) 
+                all_y_hist = np.concatenate([y_hist, y_balsa])
+                
+                # Dejar una frecuencia de un valor por mes para los ticks de la predicción
+                if self.x_forecast.size > 0:
+                    # Convertir a fechas pandas para agrupar por mes
+                    forecast_dates = pd.to_datetime(df_temperature_forecast['ds'])
+                    # Seleccionar el primer valor de cada mes
+                    forecast_months = forecast_dates.dt.to_period('M')
+                    mask = ~forecast_months.duplicated(keep='first')
+                    # Filtrar los arrays para quedarse solo con un valor por mes
+                    x_forecast = self.x_forecast[mask.values]    
+                # Filtrar los valores de predicción para evitar superposiciones con el histórico
+                x_forecast_filtrado = []
+                for xf in x_forecast:
+                    if not np.any(np.abs(all_x_hist - xf) < 30 * 86400): # 24*60*60 = 86400 segundos 1 dia
+                        x_forecast_filtrado.append(xf)
+                x_forecast_filtrado = np.array(x_forecast_filtrado)
+                # Concatenar los datos históricos y de predicción
+                all_x = np.concatenate([all_x_hist, x_forecast_filtrado])                 
+
+                # Convertir la columna 'ds' a formato timestamp si no está ya en datetime
+                df_temperature['ds'] = pd.to_datetime(df_temperature['ds'], errors='coerce')
+                # Eliminar valores NaT antes de filtrar
+                df_temperature = df_temperature.dropna(subset=['ds'])
+                # Filtrar los datos de temperatura con la fecha inicial y final de la balsa
+                df_temperature = df_temperature[(df_temperature['ds'].dt.date >= raft.getStartDate()) & (df_temperature['ds'].dt.date <= raft.getEndDate())]
+            
                 # Personalizar los ticks del eje X
                 axis = plot_widget.getAxis('bottom')                
                 # Cambiar el label del eje X de manera específica
                 axis.setLabel("", units="")
 
                 # Crear un ScatterPlotItem para ver los puntos de datos
-                scatter = pg.ScatterPlotItem(x=x, y=y, pen=pg.mkPen(color='k'), brush=pg.mkBrush(255, 255, 255, 120), size=7)
-                plot_widget.addItem(scatter)
+                scatter = pg.ScatterPlotItem(x=all_x_hist, y=all_y_hist, pen=pg.mkPen(color='k'), brush=pg.mkBrush(255, 255, 255, 120), size=7)
+                plot_widget.addItem(scatter)                              
 
-                # Graficar los datos de temperatura
-                plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2), name="Histórico", color='k')
-
-                # Guardar referencia al widget y a los valores de X para actualizaciones posteriores
-                self._temp_plot_widget = plot_widget
-                self._temp_x_values = x
+                # Graficar los datos de predicción de temperatura
+                plot_widget.plot(self.x_forecast, self.y_forecast, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Predicción", color='k')
 
                 # Conectar la función para actualizar los ticks cuando cambia el rango
-                # Se filtra el objeto vb: El objeto ViewBox que cambió que se pasa como argumento al no ser necesario
-                # Se conecta la señal sigRangeChanged a la función _update_temperature_axis_ticks
-                plot_widget.getViewBox().sigRangeChanged.connect(lambda vb, range_vals: self._update_temperature_axis_ticks(range_vals))
+                plot_widget.getViewBox().sigRangeChanged.connect(lambda vb, range_vals: self._update_temperature_axis_ticks(all_x,range_vals[0]))
+                self._update_temperature_axis_ticks(all_x,[all_x.min(), all_x.max()])
+
+                # Ajustar los rangos de los ejes de manera dinámica
+                min_x = min(all_x_hist.min(), self.x_forecast.min())
+                max_x = max(all_x_hist.max(), self.x_forecast.max())
+                min_y = min(all_y_hist.min(), self.y_forecast.min())
+                max_y = max(all_y_hist.max(), self.y_forecast.max())
+            else:
+                # Graficar histórico previo en naranja
+                if x_hist.size > 0:
+                    plot_widget.plot(x_hist, y_hist, pen=pg.mkPen(color='#FFA500', width=2), name="Histórico previo", color='g')
+
+                # Graficar histórico de la balsa en azul
+                plot_widget.plot(x_balsa, y_balsa, pen=pg.mkPen(color='b', width=2), name="Histórico balsa", color='b')
+
+                # Guardar referencia al widget y a los valores de X para actualizaciones posteriores
+                self._temp_plot_widget = plot_widget                         
+                self._temp_x_values = np.concatenate([x_hist, x_balsa]) if x_hist.size > 0 else x_balsa
+
+                # Conectar la función para actualizar los ticks cuando cambia el rango
+                plot_widget.getViewBox().sigRangeChanged.connect(lambda vb, range_vals: self._update_temperature_axis_ticks(self._temp_x_values,range_vals[0]))
 
                 # Establecer los ticks iniciales
-                self._update_temperature_axis_ticks([[x.min(), x.max()], [y.min(), y.max()]])
+                all_x = np.concatenate([x_hist, x_balsa]) if x_hist.size > 0 else x_balsa
+                all_y = np.concatenate([y_hist, y_balsa]) if y_hist.size > 0 else y_balsa
+                self._update_temperature_axis_ticks(self._temp_x_values,[all_x.min(), all_x.max()])
 
-                if df_temperature_forecast is not None and not df_temperature_forecast.empty:
-                    # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
-                    self.x_forecast = df_temperature_forecast['ds'].map(pd.Timestamp.timestamp).values
-                    self.y_forecast = df_temperature_forecast['yhat'].values
+                # Convertir la columna 'ds' a formato timestamp si no está ya en datetime
+                df_temperature['ds'] = pd.to_datetime(df_temperature['ds'], errors='coerce')
+                # Eliminar valores NaT antes de filtrar
+                df_temperature = df_temperature.dropna(subset=['ds'])
+                # Filtrar los datos de temperatura con la fecha inicial y final de la balsa
+                df_temperature = df_temperature[(df_temperature['ds'].dt.date >= raft.getStartDate()) & (df_temperature['ds'].dt.date <= raft.getEndDate())]
+            
+                # Personalizar los ticks del eje X
+                axis = plot_widget.getAxis('bottom')                
+                # Cambiar el label del eje X de manera específica
+                axis.setLabel("", units="")
 
-                    # Graficar los datos de predicción de temperatura
-                    plot_widget.plot(self.x_forecast, self.y_forecast, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Predicción", color='k')
+                # Crear un ScatterPlotItem para ver los puntos de datos
+                scatter = pg.ScatterPlotItem(x=all_x, y=all_y, pen=pg.mkPen(color='k'), brush=pg.mkBrush(255, 255, 255, 120), size=7)
+                plot_widget.addItem(scatter)
+                self.x_forecast = np.array([])
+                # Si no hay predicción, usar solo los datos históricos
+                min_x = all_x.min()
+                max_x = all_x.max()
+                min_y = all_y.min()
+                max_y = all_y.max()
 
-                    # Ajustar los rangos de los ejes de manera dinámica
-                    min_x = min(x.min(), self.x_forecast.min())
-                    max_x = max(x.max(), self.x_forecast.max())
-                    min_y = min(y.min(), self.y_forecast.min())
-                    max_y = max(y.max(), self.y_forecast.max())
-                else:
-                    self.x_forecast = np.array([])
-                    # Si no hay predicción, usar solo los datos históricos
-                    min_x = x.min()
-                    max_x = x.max()
-                    min_y = y.min()
-                    max_y = y.max()
+            plot_widget.setXRange(min_x, max_x, padding=0.1)
+            plot_widget.setYRange(min_y, max_y, padding=0.1)
 
-                plot_widget.setXRange(min_x, max_x, padding=0.1)
-                plot_widget.setYRange(min_y, max_y, padding=0.1)
+            # Establecer color negro para la leyenda
+            for item in legend.items:
+                label = item[1]
+                texto_original = label.text
+                label.setText(texto_original, color='k')                 
 
-                # Establecer color negro para la leyenda
-                for item in legend.items:
-                    label = item[1]
-                    texto_original = label.text
-                    label.setText(texto_original, color='k') 
+            # Añadir línea vertical para la fecha actual (usa un color diferente)
+            self.date_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='b', width=2, style=Qt.DashLine))
+            if self.x_forecast.size > 0:
+                initial_pos = self.x_forecast[0]
+            else:
+                initial_pos = x_balsa[0]  # Usa el primer valor histórico si no hay predicción
 
-                '''
-                # Conectar el evento de movimiento del ratón
-                if df_temperature_forecast is not None:
-                    def on_mouse_move(event):self._mouse_move_plot(event, plot_widget, x, y, self.y_forecast, vline)
-                else:            
-                    def on_mouse_move(event):self._mouse_move_plot(event, plot_widget, x, y, None, vline)
-                
-                # Conectar el evento de movimiento del ratón
-                plot_widget.scene().sigMouseMoved.connect(on_mouse_move)
-                '''
-
-                # Añadir línea vertical para la fecha actual (usa un color diferente)
-                self.date_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='b', width=2, style=Qt.DashLine))
-                if self.x_forecast.size > 0:
-                    initial_pos = self.x_forecast[0]
-                else:
-                    initial_pos = x[0]  # Usa el primer valor histórico si no hay predicción
-                self.date_vline.setPos(initial_pos)
-                # Añadir línea vertical para la predicción con la fecha actual (usa un color diferente)                
-                self.date_vline_forescast = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine))
-                self.date_vline_forescast.setPos(initial_pos)
-                # Añadir la líneas verticales al gráfico
-                plot_widget.addItem(self.date_vline_forescast)
-                plot_widget.addItem(self.date_vline)
-                
+            self.date_vline.setPos(initial_pos)
+            # Añadir línea vertical para la predicción con la fecha actual (usa un color diferente)                
+            self.date_vline_forescast = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine))
+            self.date_vline_forescast.setPos(initial_pos)
+            # Añadir la líneas verticales al gráfico
+            plot_widget.addItem(self.date_vline_forescast)
+            plot_widget.addItem(self.date_vline)                
         
         self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)        
 
