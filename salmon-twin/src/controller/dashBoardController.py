@@ -234,6 +234,29 @@ class dashBoardController:
             delta_days = (raft.getEndDate() - raft.getStartDate()).days
             forescast_start_date = raft.getStartDate() + timedelta(delta_days * perCent)
 
+            # --- AÑADIR DATOS HISTÓRICOS PREVIOS AL ENTRENAMIENTO ---
+            # Fechas de la balsa
+            start_date = raft.getStartDate()
+            end_date = raft.getEndDate()
+            # Calcular la fecha de inicio del rango previo
+            prev_start_date = start_date - timedelta(days=delta_days)
+            # Filtrar históricos previos (mismo rango de días que la balsa, justo antes)
+            dataTemp['ds'] = pd.to_datetime(dataTemp['ds'], errors='coerce')
+            dataTemp = dataTemp.dropna(subset=['ds'])
+            df_hist = dataTemp[(dataTemp['ds'].dt.date >= prev_start_date) & (dataTemp['ds'].dt.date < start_date)]
+            df_hist = df_hist.sort_values('ds')
+            # Filtrar históricos de la balsa
+            df_balsa = dataTemp[(dataTemp['ds'].dt.date >= start_date) & (dataTemp['ds'].dt.date <= end_date)]
+            # Unir el último punto de df_hist con el primero de df_balsa si ambos existen
+            if not df_hist.empty and not df_balsa.empty:
+                first_balsa = df_balsa.iloc[[0]]
+                df_hist = pd.concat([df_hist, first_balsa], ignore_index=True)
+            # Concatenar históricos previos y de la balsa
+            if not df_hist.empty:
+                dataTemp = pd.concat([df_hist, df_balsa], ignore_index=True)
+            else:
+                dataTemp = df_balsa
+
             # Dias de predicción
             forescastDays = (raft.getEndDate() - forescast_start_date).days
 
