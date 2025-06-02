@@ -282,10 +282,39 @@ class dashBoardController:
         
         # Obtener las fechas inicial y final de la balsa
         start_date = raft.getStartDate()
-        end_date = raft.getEndDate()        
-        if not self.priceModel.setPriceData(raft.getPriceData()):
+        end_date = raft.getEndDate()
+        delta_days = (end_date - start_date).days
+
+        # Obtener todos los datos de precios
+        price_data = raft.getPriceData()
+        if price_data is None or price_data.empty:
+            auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error="No hay datos de precios"))
+            return
+        
+        # Convertir la columna 'timestamp' a formato datetime si no está ya
+        price_data['timestamp'] = pd.to_datetime(price_data['timestamp'], errors='coerce')
+        price_data = price_data.dropna(subset=['timestamp'])
+
+        # --- Añadir datos históricos previos al entrenamiento ---
+        prev_start_date = start_date - timedelta(days=delta_days)
+        df_hist = price_data[(price_data['timestamp'].dt.date >= prev_start_date) & (price_data['timestamp'].dt.date < start_date)]
+        df_hist = df_hist.sort_values('timestamp')
+        df_balsa = price_data[(price_data['timestamp'].dt.date >= start_date) & (price_data['timestamp'].dt.date <= end_date)]
+        # Unir el último punto de df_hist con el primero de df_balsa si ambos existen
+        if not df_hist.empty and not df_balsa.empty:
+            first_balsa = df_balsa.iloc[[0]]
+            df_hist = pd.concat([df_hist, first_balsa], ignore_index=True)
+        # Concatenar históricos previos y de la balsa
+        if not df_hist.empty:
+            price_data = pd.concat([df_hist, df_balsa], ignore_index=True)
+        else:
+            price_data = df_balsa
+
+        # Establecer los datos en el modelo
+        if not self.priceModel.setPriceData(price_data):
             auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
             return
+                                  
         # Llamar al método fit_price con las fechas específicas
         if self.dateSliderCurrent is None:
             sliderValue = 0
@@ -313,8 +342,35 @@ class dashBoardController:
     
         # Obtener las fechas y configurar datos en el modelo
         start_date = raft.getStartDate()
-        end_date = raft.getEndDate()        
-        if not self.priceModel.setPriceData(raft.getPriceData()):
+        end_date = raft.getEndDate()
+        delta_days = (end_date - start_date).days
+
+        # --- Añadir datos históricos previos al entrenamiento ---
+        price_data = raft.getPriceData()
+        if price_data is None or price_data.empty:
+            auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error="No hay datos de precios"))
+            return
+        
+        # Convertir la columna 'timestamp' a formato datetime si no está ya
+        price_data['timestamp'] = pd.to_datetime(price_data['timestamp'], errors='coerce')
+        price_data = price_data.dropna(subset=['timestamp'])
+
+        # Filtrar históricos previos (mismo rango de días que la balsa, justo antes)
+        prev_start_date = start_date - timedelta(days=delta_days)
+        df_hist = price_data[(price_data['timestamp'].dt.date >= prev_start_date) & (price_data['timestamp'].dt.date < start_date)]
+        df_hist = df_hist.sort_values('timestamp')
+        df_balsa = price_data[(price_data['timestamp'].dt.date >= start_date) & (price_data['timestamp'].dt.date <= end_date)]
+        # Unir el último punto de df_hist con el primero de df_balsa si ambos existen
+        if not df_hist.empty and not df_balsa.empty:
+            first_balsa = df_balsa.iloc[[0]]
+            df_hist = pd.concat([df_hist, first_balsa], ignore_index=True)
+        # Concatenar históricos previos y de la balsa
+        if not df_hist.empty:
+            price_data = pd.concat([df_hist, df_balsa], ignore_index=True)
+        else:
+            price_data = df_balsa
+
+        if not self.priceModel.setPriceData(price_data):
             auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
             return
     
@@ -327,9 +383,15 @@ class dashBoardController:
         perCent = raft.getPerCentage() / 1000
 
         # Crear worker thread
-        self.search_worker = PricePredictorSearchWorker(
-            self.priceModel, perCent, start_date, end_date, n_iterations=1000
-        )
+        # Si hay datos históricos previos y de la balsa, usar el rango previo
+        if not df_hist.empty and not df_balsa.empty:            
+            self.search_worker = PricePredictorSearchWorker(
+                self.priceModel, perCent, start_date, end_date, prev_start_date, n_iterations=500
+            )
+        else:
+            self.search_worker = PricePredictorSearchWorker(
+                self.priceModel, perCent, start_date, end_date, None, n_iterations=500
+            )
 
         # Crear y mostrar diálogo de progreso
         self.search_dialog = PredictorSearchDialog(self._view,self.search_worker)
@@ -610,15 +672,26 @@ class dashBoardController:
             # Filtrar los datos según las fechas de la balsa
             start_date = raft.getStartDate()
             end_date = raft.getEndDate()
+            delta_days = (end_date - start_date).days
         
         # Convertir la columna 'timestamp' a formato datetime si no está ya
         price_data['timestamp'] = pd.to_datetime(price_data['timestamp'], errors='coerce')
         # Eliminar valores NaT antes de filtrar
         price_data = price_data.dropna(subset=['timestamp'])
+
+        # --- Datos históricos previos a la balsa (mismo rango de días que la balsa) ---
+        prev_start_date = start_date - timedelta(days=delta_days)
+        df_hist = price_data[(price_data['timestamp'].dt.date >= prev_start_date) & (price_data['timestamp'].dt.date < start_date)]
+        df_hist = df_hist.sort_values('timestamp')
         
-        # Filtrar los datos de precio entre las fechas de la balsa
+        # --- Datos de la balsa ---
         filtered_price = price_data[(price_data['timestamp'].dt.date >= start_date) & 
                                    (price_data['timestamp'].dt.date <= end_date)]
+        
+        # --- UNIR EL ÚLTIMO PUNTO DE df_hist CON EL PRIMERO DE filtered_price ---
+        if not df_hist.empty and not filtered_price.empty:
+            first_balsa = filtered_price.iloc[[0]]
+            df_hist = pd.concat([df_hist, first_balsa], ignore_index=True)
         
         if filtered_price.empty:
             # Mostrar una 'X' roja si no hay datos en el rango de fechas
@@ -626,15 +699,26 @@ class dashBoardController:
             plot_widget.setTitle("Precio del Salmón (sin datos en el rango seleccionado)")
         else:
             # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
+            if not df_hist.empty:
+                x_hist = df_hist['timestamp'].map(pd.Timestamp.timestamp).values
+                y_hist = df_hist['EUR_kg'].values
+            else:
+                x_hist = np.array([])
+                y_hist = np.array([])
+
             x = filtered_price['timestamp'].map(pd.Timestamp.timestamp).values
             y = filtered_price['EUR_kg'].values
+
+            # Graficar los datos históricos previos en amarillo
+            if x_hist.size > 0:
+                plot_widget.plot(x_hist, y_hist, pen=pg.mkPen(color='#FFA500', width=2), name="Histórico previo", color='#FFD700')
 
             # Graficar los datos históricos de precio
             plot_widget.plot(x, y, pen=pg.mkPen(color='b', width=2),name="Histórico")
             
             # Guardar referencia al widget y a los valores de X para actualizaciones posteriores
             self._price_plot_widget = plot_widget
-            self._price_x_values = x
+            self._price_x_values = np.concatenate([x_hist, x]) if x_hist.size > 0 else x
 
             # Conectar la función para actualizar los ticks cuando cambia el rango
             # Se filtra el objeto vb: El objeto ViewBox que cambió que se pasa como argumento al no ser necesario
@@ -642,10 +726,12 @@ class dashBoardController:
             plot_widget.getViewBox().sigRangeChanged.connect(lambda vb, range_vals: self._update_price_axis_ticks(range_vals))
 
             # Establecer los ticks iniciales
-            self._update_price_axis_ticks([[x.min(), x.max()], [y.min(), y.max()]])
+            all_x = np.concatenate([x_hist, x]) if x_hist.size > 0 else x
+            all_y = np.concatenate([y_hist, y]) if y_hist.size > 0 else y
+            self._update_price_axis_ticks([[all_x.min(), all_x.max()], [all_y.min(), all_y.max()]])
 
             # Crear un ScatterPlotItem para ver los puntos de datos
-            scatter = pg.ScatterPlotItem(x=x, y=y, pen=pg.mkPen(color='k'), brush=pg.mkBrush(255, 255, 255, 120), size=7)
+            scatter = pg.ScatterPlotItem(x=all_x, y=all_y, pen=pg.mkPen(color='k'), brush=pg.mkBrush(255, 255, 255, 120), size=7)
             plot_widget.addItem(scatter)
 
             if price_data_forescast is not None and not price_data_forescast.empty:                
@@ -670,10 +756,10 @@ class dashBoardController:
                                  name="Predicción")                              
                 
                 # Configurar el rango de visualización para mostrar desde la fecha inicial a la fecha final
-                min_x = min(x.min(), x_forecast.min())
-                max_x = max(x.max(), x_forecast.max())
-                min_y = min(y.min(), y_forecast.min())
-                max_y = max(y.max(), y_forecast.max())
+                min_x = min(all_x.min(), x_forecast.min())
+                max_x = max(all_x.max(), x_forecast.max())
+                min_y = min(all_y.min(), y_forecast.min())
+                max_y = max(all_y.max(), y_forecast.max())
                 
                 plot_widget.setXRange(min_x, max_x, padding=0.1)
                 plot_widget.setYRange(min_y, max_y, padding=0.1)
@@ -1909,12 +1995,13 @@ class PricePredictorSearchWorker(QThread):
     result_found = Signal(int, dict)
     finished_signal = Signal(bool, str)
     
-    def __init__(self, price_model, percent, start_date, end_date, n_iterations=100):
+    def __init__(self, price_model, percent, start_date, end_date, prev_start_date, n_iterations):
         super().__init__()
         self.price_model = price_model
         self.percent = percent
         self.start_date = start_date
         self.end_date = end_date
+        self.prev_start_date = prev_start_date
         self.n_iterations = n_iterations
         self.should_stop = False
         self.mutex = QMutex()
@@ -1931,7 +2018,7 @@ class PricePredictorSearchWorker(QThread):
             
             # 1. Preparar datos usando el modelo
             data_result = self.price_model.prepare_data_for_optimization(
-                self.percent, self.start_date, self.end_date
+                self.percent, self.start_date, self.end_date, self.prev_start_date
             )
             
             if data_result is None:

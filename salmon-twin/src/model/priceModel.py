@@ -53,7 +53,7 @@ class DataPrice:
         Returns:
             tuple: (train_data, test_data) o None si hay error
         """
-    def prepare_data_for_optimization(self, percent, start_date, end_date):
+    def prepare_data_for_optimization(self, percent, start_date, end_date, prev_start_date):
     
         try:
             if self._price_data is None:
@@ -67,17 +67,20 @@ class DataPrice:
             filtered_data = self._price_data.copy()
             filtered_data['timestamp'] = pd.to_datetime(filtered_data['timestamp'], errors='coerce')
             filtered_data = filtered_data.dropna(subset=['timestamp'])
-        
+            # Contar registros antes de la conversión de fecha
             records_after_date_parsing = len(filtered_data)
             invalid_dates = total_records - records_after_date_parsing
-        
-            if start_date:
+            # Filtrar por fecha previa si se proporciona
+            if prev_start_date:
+                filtered_data = filtered_data[filtered_data['timestamp'].dt.date >= prev_start_date]
+            elif start_date:
                 filtered_data = filtered_data[filtered_data['timestamp'].dt.date >= start_date]
+            # Filtrar por fecha final si se proporciona
             if end_date:
                 filtered_data = filtered_data[filtered_data['timestamp'].dt.date <= end_date]
-            
+            # Asegurarse de que el DataFrame esté ordenado por la columna 'timestamp'
             filtered_data = filtered_data.sort_values(by='timestamp')
-        
+            # Contar registros después del filtrado por fecha
             records_after_date_filter = len(filtered_data)
             records_filtered_out = records_after_date_parsing - records_after_date_filter
         
@@ -179,7 +182,7 @@ class DataPrice:
         Returns:
             dict: Resultados de la optimización o None si hay error
     """    
-    def run_parameter_optimization(self, train_data, test_data, n_iterations=100,
+    def run_parameter_optimization(self, train_data, test_data, n_iterations,
                                fixed_stats=None, fixed_windows=None, fixed_params=None, lags=None,
                                progress_callback=None):
        
@@ -187,7 +190,7 @@ class DataPrice:
             results = self.find_optimal_configuration(
                 train=train_data,
                 test=test_data,
-                max_window=len(train_data)//2,
+                max_window=len(train_data) - 1,
                 n_iterations=n_iterations,
                 fixed_stats=fixed_stats,
                 fixed_windows=fixed_windows,
@@ -368,7 +371,7 @@ class DataPrice:
     Returns:
         tuple: (mejores_estadísticas, mejores_ventanas, mejores_parámetros, mejor_mae)
     """
-    def find_optimal_configuration(self, train, test, max_window, n_iterations=50,
+    def find_optimal_configuration(self, train, test, max_window, n_iterations,
                                    fixed_stats=None, fixed_windows=None,fixed_params=None,lags=None,
                                    progress_callback=None):    
         # Crear serie temporal para entrenamiento
