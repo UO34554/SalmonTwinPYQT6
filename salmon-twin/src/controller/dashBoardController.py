@@ -1674,6 +1674,12 @@ class dashBoardController:
              # Datos de la balsa
             df_balsa = df_temperature[(df_temperature['ds'].dt.date >= start_date) & (df_temperature['ds'].dt.date <= end_date)]
 
+            # --- UNIR EL ÚLTIMO PUNTO DE df_hist CON EL PRIMERO DE df_balsa ---
+            if not df_hist.empty and not df_balsa.empty:                
+                first_balsa = df_balsa.iloc[[0]]                
+                # Añadir el punto puente al inicio de df_balsa
+                df_hist = pd.concat([df_hist,first_balsa], ignore_index=True)
+
             # Convertir fechas a valores numéricos (timestamps) para pyqtgraph
             if not df_hist.empty:
                 x_hist = df_hist['ds'].map(pd.Timestamp.timestamp).values
@@ -1792,6 +1798,7 @@ class dashBoardController:
                 min_y = all_y.min()
                 max_y = all_y.max()
 
+            # Ajustar el zoom del gráfico para que se ajuste a los datos
             plot_widget.setXRange(min_x, max_x, padding=0.1)
             plot_widget.setYRange(min_y, max_y, padding=0.1)
 
