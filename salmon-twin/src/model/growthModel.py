@@ -122,25 +122,16 @@ class GrowthModel:
             forescastGrowth.loc[i,'biomass'] = growth_factor * number_fishes / 1000.0
 
         # --- Añadir el punto de unión intermedio SOLO para la gráfica ---
-        if not (last_historicalGrowth.day == 1 and last_historicalGrowth.hour == 0 and last_historicalGrowth.minute == 0):
-            # Interpolamos la biomasa y otros valores entre el último punto histórico y el primer punto forecast
-            # Tomamos el último punto histórico y el primer punto forecast
-            last_hist = historicalGrowth.iloc[-1]
-            first_fore = forescastGrowth.iloc[0]
-            # Interpolación lineal usando numpy para cada valor
-            x = np.array([last_hist['ds'].toordinal(), first_fore['ds'].toordinal()])
-            union_x = last_historicalGrowth.toordinal()
-            union_point = {
-                'ds': last_historicalGrowth,
-                'y': np.interp(union_x, x, [last_hist['y'], first_fore['yhat']]),
-                'function': np.interp(union_x, x, [last_hist['function'], first_fore['function']]),
-                'growth': np.interp(union_x, x, [last_hist['growth'], first_fore['growth']]),
-                'number_fishes': np.interp(union_x, x, [last_hist['number_fishes'], first_fore['number_fishes']]),
-                'biomass': np.interp(union_x, x, [last_hist['biomass'], first_fore['biomass']])
-            }
-            # Añadir el punto de unión al DataFrame histórico para la gráfica
-            historicalGrowth = pd.concat([historicalGrowth, pd.DataFrame([union_point])], ignore_index=True)
-            forescastGrowth = pd.concat([pd.DataFrame([union_point]), forescastGrowth], ignore_index=True)
+        # Si hay hueco entre el último histórico y el primer forecast, añade el último punto histórico como primer punto del forecast
+        if not forescastGrowth.empty:
+            last_hist_date = historicalGrowth['ds'].iloc[-1]
+            first_fore_date = forescastGrowth['ds'].iloc[0]
+            if last_hist_date < first_fore_date:
+                # Copia el último punto histórico y lo añade al principio del forecast
+                punto_union = historicalGrowth.iloc[[-1]].copy()
+                # Si la columna 'yhat' existe en forescastGrowth, iguala 'y' a 'yhat' para el punto de unión
+                if 'yhat' in forescastGrowth.columns:
+                    punto_union['yhat'] = punto_union['y']
+                forescastGrowth = pd.concat([punto_union, forescastGrowth], ignore_index=True)
 
         return historicalGrowth, forescastGrowth
-    
