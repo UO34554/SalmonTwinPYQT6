@@ -383,7 +383,7 @@ class DataPrice:
     
         # Definir opciones para cada componente
         if fixed_stats is None:
-            stats_options = ['mean', 'std', 'min', 'max', 'sum', 'median', 'ratio_min_max', 'coef_variation']
+            stats_options = ['mean', 'std', 'min', 'max', 'sum', 'median', 'ratio_min_max', 'coef_variation', 'ewm']
         else:
             stats_options = fixed_stats
 
@@ -404,29 +404,14 @@ class DataPrice:
                 'colsample_bytree': [0.7, 0.8, 0.9]
             }
         else:
-            param_grid = fixed_params
+            param_grid = fixed_params          
 
-        # Los lags se deberían variar entre 1 y el tamaño de train - 1?
-        if not lags is None:
-            # Asegurarse de que lags no exceda el tamaño de train
-            lags=min(lags,len(train)-1)
-    
         # Suprimir advertencias
         wn.filterwarnings('ignore', category=Warning)
     
-        # Variables para almacenar los mejores resultados
-        '''
-        best_mae = float('inf')
-        best_rmse = float('inf')
-        best_mape = float('inf')
-        best_dir_acc = 0.0
-        '''
+        # Variables para almacenar los mejores resultados        
         best_score = 0.0  # Inicializar con 0 ya que queremos maximizarlo
-        '''
-        best_stats = None
-        best_windows = None
-        best_params = None
-        '''
+        
         print(f"Probando {n_iterations} configuraciones aleatorias completas...")
     
         # Almacenar resultados
@@ -482,65 +467,72 @@ class DataPrice:
                     stats=stats,
                     window_sizes=windows
                 )
+
+                # 5. Elegir lags a usar
+                if not lags is None:
+                    # Asegurarse de que lags no exceda el tamaño de train
+                    lags_to_use=min(lags,len(train)-1)
+                else:
+                    num_lags_to_generate = random.randint(1, min(4, len(train)-1))
+                    # Limitar el rango de los lags a un valor razonable (ej. hasta max_window o max_possible_lag)
+                    max_lag_value_pool = min(max_window + 1, len(train) - 1 + 1)
+                    if max_lag_value_pool < num_lags_to_generate: # Si no hay suficientes lags disponibles
+                        lags_to_use = list(range(1, max_lag_value_pool)) # Usar todos los lags posibles
+                    else:
+                        lags_to_use = sorted(random.sample(range(1, max_lag_value_pool), k=num_lags_to_generate))
             
+                # Regresor con los parámetros seleccionados
                 regressor = LGBMRegressor(**params)
-            
+                # Crear el modelo ForecasterRecursive con las características de regresor, lags y ventana
                 forecaster = ForecasterRecursive(
                     regressor=regressor,                    
-                    lags=lags,
+                    lags=lags_to_use,
                     window_features=window_features
                 )
             
-                # 5. Entrenar y evaluar
+                # 6. Entrenar el modelo con los datos de train y predecir una longitud igual a test
                 forecaster.fit(y=y_train)
                 predictions = forecaster.predict(steps=len(test))
-                # Evaluar el modelo
-                mae = mean_absolute_error(test['y'].values, predictions.values)
-                rmse = np.sqrt(mean_squared_error(test['y'].values, predictions.values))
 
+                # 7. Evaluar el modelo
+                # MAE (Error absoluto medio)                
+                mae = mean_absolute_error(test['y'].values, predictions.values)
+                # RMSE (Raíz del error cuadrático medio)
+                rmse = np.sqrt(mean_squared_error(test['y'].values, predictions.values))
                 # MAPE (Error porcentual)
                 def mape(y_true, y_pred):
-                    return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+                    return np.mean(np.abs((y_true - y_pred) / (y_true+ 1e-8))) * 100 # Pequeño epsilon 1e-8 para evitar división por cero
                 mape_value = mape(test['y'].values, predictions.values)
 
                 # Dirección de cambio (tendencias acertadas)
                 def direction_accuracy(y_true, y_pred):
                     if len(y_true) <= 1:
-                        return 0                    
-                    direction_true = np.diff(y_true) > 0
-                    direction_pred = np.diff(y_pred) > 0
+                        return 0
+                    min_len = min(len(y_true), len(y_pred))
+                    if min_len <= 1: # Si no hay al menos 2 puntos para calcular diff
+                        return 0                  
+                    direction_true = np.diff(y_true[:min_len]) > 0
+                    direction_pred = np.diff(y_pred[:min_len]) > 0
+
+                    if len(direction_true) == 0 or len(direction_pred) == 0:
+                        return 0
+                    # Asegurarse de que ambos arrays tengan la misma longitud
                     return np.mean(direction_true == direction_pred) * 100                
                 dir_acc = direction_accuracy(test['y'].values, predictions.values)
 
                 # Ponderaciones según importancia (deben sumar 1.0)
                 score = (
-                    0.15 * (1.0 - mae/5.0) +            # MAE normalizado (menor es mejor)
-                    0.15 * (1.0 - rmse/8.0) +           # RMSE normalizado (menor es mejor)
-                    0.15 * (1.0 - mape_value/100) +     # MAPE (menor es mejor)
-                    0.55 * (dir_acc/100)                # Acierto direccional (mayor es mejor)
+                    0.30 * (1.0 - mae/5.0) +            # MAE normalizado (menor es mejor)
+                    0.30 * (1.0 - rmse/8.0) +           # RMSE normalizado (menor es mejor)
+                    0.20 * (1.0 - mape_value/100) +     # MAPE (menor es mejor)
+                    0.20 * (dir_acc/100)                # Acierto direccional (mayor es mejor)
                 )
 
                 # Actualizar si esta configuración es mejor
-                if score > best_score:  # Nota: ahora buscamos maximizar score, no minimizar MAE
+                # Nota: buscamos maximizar score, no minimizar MAE
+                if score > best_score:  
                     best_score = score
-                    '''
-                    best_mae = mae
-                    best_rmse = rmse
-                    best_mape = mape_value
-                    best_dir_acc = dir_acc
-                    best_stats = stats
-                    best_windows = windows
-                    best_params = params
-                    
-                    print(f"\nNueva mejor configuración (score: {best_score:.6f}) (iter {i+1}/{n_iterations}):")
-                    print(f"MAE: {best_mae:.4f}, RMSE: {best_rmse:.4f}, MAPE: {best_mape:.2f}%, Dir: {best_dir_acc:.2f}%")                    
-                    print(f"Stats: {best_stats}")
-                    print(f"Windows: {best_windows}")
-                    if fixed_params is None:
-                        print(f"Params: n_est={best_params['n_estimators']}, lr={best_params['learning_rate']}, depth={best_params['max_depth']}")
-                    else:
-                        print(f"Params: {fixed_params}")
-                    '''
+
                     # 6. Guardar resultados
                     results.append({
                         'score':    score,
@@ -550,7 +542,8 @@ class DataPrice:
                         'dir_acc':  dir_acc,
                         'stats':    stats,
                         'windows':  windows,
-                        'params':   params,                    
+                        'params':   params,
+                        'lags':     lags_to_use,               
                     })
                     best_result = results[-1].copy()
                     best = True
@@ -566,7 +559,7 @@ class DataPrice:
                 print(f"Error en iteración {i+1}: {e}")
                 continue
     
-        # Ordenar y mostrar mejores resultados
+        # 8. Ordenar y mostrar mejores resultados
         results.sort(key=lambda x: x['score'],reverse=True)        
         print("\nMejores 5 configuraciones encontradas:")
         for i, result in enumerate(results[:5]):

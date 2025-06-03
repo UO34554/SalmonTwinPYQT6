@@ -4,7 +4,7 @@ Gestor unificado de balsas marinas para el sistema Salmon Twin
 """
 from PySide6.QtWidgets import QLabel, QDialog, QFileDialog, QGraphicsView, QGraphicsScene, QWidget, QSlider, QGridLayout, QVBoxLayout, QPushButton, QProgressDialog, QTextEdit
 from PySide6.QtCore import Qt, QTimer, QThread, QMutexLocker, QMutex, Signal
-from PySide6.QtGui import QPen, QBrush, QColor, QFont
+from PySide6.QtGui import QPen, QBrush, QColor, QFont, QTextCursor
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
 import numpy as np
@@ -370,6 +370,7 @@ class dashBoardController:
         else:
             price_data = df_balsa
 
+        # Establecer los datos en el modelo
         if not self.priceModel.setPriceData(price_data):
             auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
             return
@@ -382,15 +383,18 @@ class dashBoardController:
         # Calcular porcentaje
         perCent = raft.getPerCentage() / 1000
 
+        # Se fija el número de iteraciones
+        num_iterations = 800
+
         # Crear worker thread
         # Si hay datos históricos previos y de la balsa, usar el rango previo
         if not df_hist.empty and not df_balsa.empty:            
             self.search_worker = PricePredictorSearchWorker(
-                self.priceModel, perCent, start_date, end_date, prev_start_date, n_iterations=500
+                self.priceModel, perCent, start_date, end_date, prev_start_date, n_iterations=num_iterations
             )
         else:
             self.search_worker = PricePredictorSearchWorker(
-                self.priceModel, perCent, start_date, end_date, None, n_iterations=500
+                self.priceModel, perCent, start_date, end_date, None, n_iterations=num_iterations
             )
 
         # Crear y mostrar diálogo de progreso
@@ -2036,7 +2040,7 @@ class PricePredictorSearchWorker(QThread):
                     return
             
             # 3. Ejecutar optimización con monitoreo de progreso
-            self.print_message.emit("Ejecutando búsqueda de parámetros óptimos...")
+            self.status_updated.emit("Ejecutando búsqueda de parámetros óptimos...")
             results = self._run_optimization_with_progress(train_data, test_data, progress_callback=self._progress_callback)
             
             if self.should_stop:
@@ -2254,6 +2258,7 @@ class PredictorSearchDialog(QDialog):
         stats = result.get('stats', 'N/A')
         windows = result.get('windows', 'N/A')
         params = result.get('params', {})
+        lags = result.get('lags', 'N/A')
 
         # Mostrar todos los datos en el área de progreso
         self.results_text.append(
@@ -2262,6 +2267,7 @@ class PredictorSearchDialog(QDialog):
             f"   Stats: {stats}\n"
             f"   Windows: {windows}\n"
             f"   Params: {params}\n"
+            f"   Lags: {lags}\n"
             + "-"*50
         )
         self.best_results.append(result)
@@ -2289,6 +2295,7 @@ class PredictorSearchDialog(QDialog):
             stats = result.get('stats', 'N/A')
             windows = result.get('windows', 'N/A')
             params = result.get('params', {})
+            lags = result.get('lags', 'N/A')
 
             # Medallas para los top 3
             if position == 1:
@@ -2306,7 +2313,14 @@ class PredictorSearchDialog(QDialog):
             self.ranking_text.append(f"   Stats: {stats}")
             self.ranking_text.append(f"   Windows: {windows}")
             self.ranking_text.append(f"   Params: {params}")
-            self.ranking_text.append("-" * 80)            
+            self.ranking_text.append(f"   Lags: {lags}")
+            self.ranking_text.append("-" * 80)
+
+        self.ranking_text.append("\n🔝 Ranking actualizado. Los mejores resultados están arriba.")
+        # Ver la primera línea del ranking        
+        cursor = self.ranking_text.textCursor()
+        cursor.movePosition(QTextCursor.Start)
+        self.ranking_text.setTextCursor(cursor)            
 
     """Llamado cuando termina la búsqueda"""       
     def search_finished(self, success, message):
