@@ -18,6 +18,8 @@ from itertools import combinations_with_replacement
 from tqdm import tqdm
 import warnings as wn
 import random
+import os
+import json
 
 
 # Se define la clase DataPrice para gestionar los datos de precios
@@ -580,14 +582,17 @@ class DataPrice:
     
         return results
     
-    # Se ajusta el modelo de precios utilizando los datos de precios procesados
+    # Ajusta el modelo de precios con los datos proporcionados
     # Parámetros:
-    # start_date (datetime): Fecha inicial para el ajuste del modelo
-    # end_date (datetime): Fecha final para el ajuste del modelo
-    # horizon_days (int): Número de días para la predicción
+    # percent: Porcentaje de datos a usar para el entrenamiento (0 - 1000)
+    # start_date: Fecha de inicio del rango de datos a usar (opcional)
+    # end_date: Fecha de fin del rango de datos a usar (opcional)
+    # adjust: Si es True, ajusta las ventanas y estadísticas del modelo (opcional)
+    # estimator: Estimador a usar (opcional, no se usa en este caso)
     # Retorna:
-    # bool: True si se ajustó correctamente, False en caso contrario   
-    def fit_price(self, percent, start_date=None, end_date=None, adjust=False):
+    # bool: True si el ajuste fue exitoso, False en caso contrario    
+    def fit_price(self, percent, start_date=None, end_date=None, adjust=False, estimator=None, prev_start_date=None):
+
         self.lastError = None
         if self._price_data is None:
              self.lastError = cfg.PRICEMODEL_FIT_NO_DATA
@@ -597,10 +602,11 @@ class DataPrice:
             filtered_data = self._price_data.copy()
             filtered_data['timestamp'] = pd.to_datetime(filtered_data['timestamp'], errors='coerce')
             # Eliminar filas con valores NaT (fechas inválidas)
-            filtered_data = filtered_data.dropna(subset=['timestamp'])           
+            filtered_data = filtered_data.dropna(subset=['timestamp'])
             
-            # Filtrar por fecha inicial si se proporciona
-            if start_date:
+            if prev_start_date:
+                filtered_data = filtered_data[filtered_data['timestamp'].dt.date >= prev_start_date]
+            elif start_date:
                 filtered_data = filtered_data[filtered_data['timestamp'].dt.date >= start_date]
                 
             # Filtrar por fecha final si se proporciona
@@ -627,160 +633,125 @@ class DataPrice:
                 'y': filtered_data['EUR_kg'].astype(float)  # Convertir toda la columna a float
             })
             train = data[data['ds'].dt.date <= current_date]
-            test = data[data['ds'].dt.date > current_date]
-
-            # Inicializar variables de control
-            results = None
-            fixed_windows = None
-            fixed_stats = None
-            fixed_lags = None
-            fixed_params = None
+            delta_days_forecast = (delta_days - current_day_offset)// 7  # Calcular el número de semanas restantes
 
             # Variables fijadas para la búsqueda
             if not adjust:
                 # Si no se ajusta, se fijan las ventanas y estadísticas por defecto
-                fixed_windows = [4, 12, 26, 53]
-                fixed_stats = ["mean", "mean","mean","mean"]
-                fixed_lags = 53
-                fixed_params = {'random_state': 15926,'verbose': -1}            
+                windows = [4, 12, 26, 53]
+                stats = ["mean", "mean","mean","mean"]
+                lags_to_use = min(53, len(train)-1)  # Asegurarse de que lags no exceda el tamaño de train
+                params = {'random_state': 15926,'verbose': -1}            
             else:
-                results = self.find_optimal_configuration(train, test, len(train)//1, 1000,fixed_stats, fixed_windows, fixed_params,fixed_lags)
-
-            if results is None or len(results) == 0:
-               best_score = 0.0
-               best_mae = 0.0
-               best_rmse = 0.0
-               best_mape = 0.0
-               best_dirc = 0.0
-            else:
-                best_score = results[0]['score']
-                best_mae = results[0]['mae']
-                best_rmse = results[0]['rmse']
-                best_mape = results[0]['mape']
-                best_dirc = results[0]['dir_acc']
-
-            if fixed_stats is None and len(results) > 0:
-                best_stats = results[0]['stats']
-            elif fixed_stats is None and len(results) == 0:
-                best_stats = ["mean", "mean","mean","mean"]
-            else:
-                best_stats = fixed_stats
-
-            if fixed_windows is None and len(results) > 0:
-                best_windows = results[0]['windows']
-            elif fixed_windows is None and len(results) == 0:
-                best_windows = [4, 12, 26, 53]
-            else:
-                best_windows = fixed_windows
-
-            if fixed_params is None and len(results) > 0:
-                best_params = results[0]['params']
-            elif fixed_params is None and len(results) == 0:
-                best_params = {'random_state': 15926,'verbose': -1}
-            else:
-                best_params = fixed_params
-
-            print(f"Mejor score: {best_score:.4f}")
-            print(f"Mejor MAE: {best_mae:.4f}")
-            print(f"Mejor RMSE: {best_rmse:.4f}")
-            print(f"Mejor MAPE: {best_mape:.2f}%")
-            print(f"Mejor acierto direccional: {best_dirc:.2f}%")
-            print(f"Mejor combinación de estadísticas: {best_stats}")
-            print(f"Mejores parámetros: {best_params}")
-            print(f"Mejores tamaños de ventana: {best_windows}")
-            
-            max_possible_window = len(train)-1
-            if max_possible_window < 5:
-                # Si el tamaño máximo de ventana es menor a 5, ajustar las ventanas
-                best_windows = [1, 2, 3]
-                best_stats = ["mean", "mean","mean"]
-                print(f"Ajustando tamaños de ventana a: {best_windows} debido a tamaño limitado de datos")
-            else:
-                max_windows = max(best_windows)
-                min_windows = min(best_windows)
-                if max_possible_window < max_windows:
-                    scale_factor = max_possible_window / max_windows
-                    best_windows = [
-                        max(min_windows, int(min_windows * scale_factor)),
-                        max(min_windows, int(best_windows[1] * scale_factor)),
-                        max(min_windows, int(best_windows[2] * scale_factor)),
-                        max_possible_window
-                    ]
-                    # Si hay repetidos dejar como 1,2,3,4
-                    if len(set(best_windows)) < len(best_windows):  # Detecta valores duplicados
-                        best_windows = [1, 2, 3, 4]
-                        print(f"Ajustando tamaños de ventana a: {best_windows} debido a tamaño limitado de datos")
-
-            window_features = RollingFeatures(
-                stats=best_stats,  
-                window_sizes=best_windows
-            )
-
+                windows = estimator['windows']
+                stats = estimator['stats']
+                lags_to_use = estimator['lags']
+                params = {
+                        'n_estimators': estimator['params']['n_estimators'],
+                        'learning_rate': estimator['params']['learning_rate'],
+                        'max_depth': estimator['params']['max_depth'],
+                        'num_leaves': estimator['params']['num_leaves'],
+                        'min_child_samples': estimator['params']['min_child_samples'],
+                        'subsample': estimator['params']['subsample'],
+                        'colsample_bytree': estimator['params']['colsample_bytree'],
+                        'random_state': estimator['params']['random_state'],
+                        'verbose': estimator['params']['verbose']
+                    }
+                
+            # Suprimir advertencias
             wn.filterwarnings('ignore', category=Warning)
-            # Crear el modelo ForecasterRecursive
-            if fixed_params is None and len(results) > 0:
-                regressor = LGBMRegressor(
-                    n_estimators=best_params['n_estimators'],
-                    learning_rate=best_params['learning_rate'],
-                    max_depth=best_params['max_depth'],
-                    num_leaves=best_params['num_leaves'],
-                    min_child_samples=best_params['min_child_samples'],
-                    subsample=best_params['subsample'],
-                    colsample_bytree=best_params['colsample_bytree'],
-                    random_state=15926,
-                    verbose=-1
-                )
-            else:
-               params = best_params
-               regressor = LGBMRegressor(**params)   
             
+            # Window features
+            window_features = RollingFeatures(
+                    stats=stats,
+                    window_sizes=windows
+                )
+            # Regresor con los parámetros seleccionados
+            regressor = LGBMRegressor(**params)
+            # Crear el modelo ForecasterRecursive con las características de regresor, lags y ventana
             forecaster = ForecasterRecursive(
-                regressor       = regressor,
-                lags            = min(fixed_lags,len(train)-1),  # Asegurarse de que lags no exceda el tamaño de train
-                window_features = window_features
+                regressor=regressor,                    
+                lags=lags_to_use,
+                window_features=window_features
             )
-
-            # Entrenar el modelo con los datos de train
-            y_train = pd.Series(
-                    data=train['y'].values,
-                    index=pd.DatetimeIndex(train['ds']),
-                    name='EUR_kg'
-                )
-
-            forecaster.fit(y=y_train)
-
-            # Predecir con el nuevo modelo            
-            predictions = forecaster.predict(steps=len(test))
-
-            # 6. Evaluar el modelo
-            mae_test = mean_absolute_error(test['y'].values, predictions.values)
-            print(f"Estadísticas de train - Min: {train['y'].min()}, Max: {train['y'].max()}, Media: {train['y'].mean():.2f}")
-            print(f"MAE final en TEST: {mae_test:.3f}")
-            print(predictions.values)            
-
-            # Importante: añadir las fechas de predicción
-            # 1. Obtener la última fecha de los datos de entrenamiento
-            last_date = train['ds'].iloc[-1]
-        
-            # 2. Generar un rango de fechas futuras semanales
-            future_dates = pd.date_range(
-                start=last_date, #+ pd.Timedelta(days=7),  # Una semana después de la última fecha
-                #periods=horizon_weeks,  # Número de semanas a predecir
-                periods=len(test),  # Número de semanas a predecir
-                freq='W'  # Frecuencia semanal
-            )
-
-            # 3. Añadir las fechas al DataFrame de predicción
-            self._price_data_forescast = pd.DataFrame()
-            self._price_data_forescast['ds'] = future_dates
             
-            self._price_data_test = test.copy()
-            self._price_data_train = train.copy()
-
-            self._price_data_forescast['y'] = predictions.values.copy()
+            # Entrenar el modelo con los datos de train y predecir una longitud igual a test
+            y_train = pd.Series(
+                data=train['y'].values,
+                index=pd.DatetimeIndex(train['ds']),
+                name='EUR_kg'
+            )
+            forecaster.fit(y_train)
+            # Generar predicciones para el número de semanas restantes
+            predictions = forecaster.predict(steps=delta_days_forecast)
+            
+            self._price_data_forescast = pd.DataFrame({
+                'ds': pd.date_range(start=current_date, periods=delta_days_forecast, freq='W'),
+                'y': predictions.values
+            })
+            
             return True
 
         except ValueError as e:
             self.lastError= cfg.PRICEMODEL_FIT_ERROR.format(e=e.args[0])
             return False
+
+    # Se guardan los mejores estimadores en un archivo JSON    
+    def save_top_estimators(self, new_estimators):
+        self.lastError = None
+        # Cargar los existentes si el archivo existe
+        json_path = cfg.PRICEMODEL_TOP_ESTIMATORS_FILE
+
+        # Si el archivo no existe, créalo vacío
+        if not os.path.exists(json_path):
+            try:
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump([], f, indent=4)
+            except Exception as e:
+                self.lastError = cfg.PRICEMODEL_ERROR_CREATE_FILE.format(path=json_path, e=e.args[0])
+                return False
+
+        # Cargar los existentes
+        with open(json_path, "r", encoding="utf-8") as f:
+            try:
+                existing = json.load(f)
+            except Exception as e:
+                self.lastError = cfg.PRICEMODEL_ERROR_LOAD_FILE.format(path=json_path, e=e.args[0])
+                return False
+            
+        # Combinar y ordenar por score descendente
+        combined = existing + new_estimators
+        combined.sort(key=lambda x: x['score'], reverse=True)
+
+        # Mantener solo los 5 mejores
+        top5 = combined[:5]
+
+        # Guardar en el archivo
+        with open(json_path, "w", encoding="utf-8") as f:
+            try:
+                json.dump(top5, f, indent=4)
+                return True
+            except Exception as e:
+                self.lastError = cfg.PRICEMODEL_ERROR_SAVE_FILE.format(path=json_path, e=e.args[0])
+                return False
+
+    # Se obtienen los mejores estimadores guardados en el archivo JSON
+    # Retorna una lista vacía si no existen o hay error de lectura       
+    def get_saved_top_estimators(self):
+        self.lastError = None
+        # Verificar si el archivo existe      
+        json_path = cfg.PRICEMODEL_TOP_ESTIMATORS_FILE
+        if not os.path.exists(json_path):
+            return []
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                estimators = json.load(f)
+                if isinstance(estimators, list):
+                    return estimators
+                else:
+                    return []
+        except Exception as e:
+            self.lastError = cfg.PRICEMODEL_ERROR_LOAD_FILE.format(path=json_path, e=e.args[0])
+            return []
+            
 

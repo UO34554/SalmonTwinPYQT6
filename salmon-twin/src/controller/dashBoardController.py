@@ -145,7 +145,7 @@ class dashBoardController:
         self.load_rafts_from_controller()        
         data = self.raftCon.get_name_rafts()
         # Mostrar un diálogo para seleccionar una balsa
-        option = self.aux_list_dialog(data)
+        option = self.aux_list_dialog(data, title=cfg.DASHBOARD_LIST_TITLE_RAFT, message=cfg.DASHBOARD_SELECT_RAFT_MESSAGE)
         if option:
             # Actualizar el mensaje de estado permanente
             self.label_estado.setText(cfg.RAFTS_LOADED_MESSAGE.format(count=self.raftCon.count_rafts()))
@@ -195,7 +195,7 @@ class dashBoardController:
     def choice_raft_list_dialog(self):
         self.load_rafts_from_controller()        
         data = self.raftCon.get_name_rafts()
-        option = self.aux_list_dialog(data)
+        option = self.aux_list_dialog(data,title=cfg.DASHBOARD_LIST_TITLE_RAFT, message=cfg.DASHBOARD_SELECT_RAFT_MESSAGE)
         # Mostrar un diálogo para seleccionar una balsa
         if not option:
             auxTools.show_error_message(cfg.DASHBOARD_SELECT_RAFT_ERORR_MESSAGE)
@@ -204,6 +204,30 @@ class dashBoardController:
             # Usar la balsa actualmente seleccionada
             raft = self.raftCon.get_raft_by_name(option)
             return raft
+
+    # Muestra un diálogo para seleccionar un estimador de precios    
+    def _select_top_estimator_dialog(self):
+        # Cargar los mejores estimadores de precios
+        items = self.priceModel.get_saved_top_estimators()
+        if len(items) == 0 and self.priceModel.lastError is not None:
+            auxTools.show_error_message(cfg.DASHBOARD_PREDICT_GET_ESTIMATORS_ERROR.format(error=self.priceModel.lastError))
+            return None
+        
+        descs = []
+        for i, est in enumerate(items):
+            desc = f"#{i+1} | Score: {est['score']:.4f} | MAE: {est['mae']:.3f} | RMSE: {est['rmse']:.3f} | Stats: {est['stats']} | Windows: {est['windows']}"
+            descs.append(desc)
+
+        option = self.aux_list_dialog(descs, title=cfg.DASHBOARD_LIST_TITLE_ESTIMATOR, message=cfg.DASHBOARD_LIST_ESTIMATOR_MESSAGE)
+        # Mostrar un diálogo para seleccionar una balsa
+        if not option:
+            auxTools.show_error_message(cfg.DASHBOARD_SELECT_ESTIMATOR_MESSAGE)
+            return None       
+        else:
+            # Usar el estimador seleccionado
+            idx = descs.index(option)
+            selected_estimator = items[idx]            
+            return selected_estimator
 
     def on_temperature_predict(self):
         raft = self.choice_raft_list_dialog()
@@ -325,7 +349,14 @@ class dashBoardController:
 
         # Dias de predicción
         perCent = raft.getPerCentage()/1000
-        if self.priceModel.fit_price(perCent,start_date, end_date, False):
+        # Permitir elegir estimador si hay guardados
+        estimator = self._select_top_estimator_dialog()
+        if estimator is not None:
+            adjust = True
+        else:
+            adjust = False
+
+        if self.priceModel.fit_price(perCent, start_date, end_date, adjust, estimator, prev_start_date=prev_start_date):
             # Guardar los datos de precios en la balsa
             raft.setPerCentage(sliderValue)           
             raft.setPriceForecast(self.priceModel.getPriceDataForecast())
@@ -1944,8 +1975,12 @@ class dashBoardController:
             self.lastError = self.raftCon.lastError        
 
     # Diálogo auxiliar para seleccionar una opción de una lista
-    def aux_list_dialog(self, data):
-        dialog = OptionsDialog(data,cfg.DASHBOARD_SELECT_RAFT_MESSAGE,cfg.DASHBOARD_LIST_TITLE)        
+    def aux_list_dialog(self, data, title, message):
+        dialog = OptionsDialog(data,title, message)
+        # Ajustar el tamaño de la ventana según la longitud máxima de las cadenas
+        max_len = max((len(str(item)) for item in data), default=60)
+        width = min(max(500, max_len * 10), 1800)  # Ajusta el factor y el máximo según necesidad
+        dialog.resize(width, 400)        
         if dialog.exec() == QDialog.Accepted:
             return dialog.get_selected_option()
         
@@ -2055,6 +2090,11 @@ class PricePredictorSearchWorker(QThread):
                 
                 if success:
                     self.finished_signal.emit(True, "Modelo entrenado correctamente")
+                    # Guardar los mejores estimadores
+                    if self.price_model.save_top_estimators(results):
+                        self.print_message.emit("Mejores estimadores guardados correctamente")
+                    else:
+                        self.finished_signal.emit(False, f"Error guardando mejores estimadores: {self.price_model.lastError}")                    
                 else:
                     self.finished_signal.emit(False, f"Error entrenando modelo final: {self.price_model.lastError}")
             else:

@@ -12,20 +12,10 @@ salmon_monitor.log
 salmon-twin/config/rafts.json
 */config/rafts.json
 **/config/rafts.json
-# Cubrir todas las posibles ubicaciones del archivo prices.json
-salmon-twin/config/prices.json
-*/config/prices.json
-**/config/prices.json
-# Cubrir todas las posibles ubicaciones del archivo priceForecast.json
-salmon-twin/config/priceForecast.json
-*/config/priceForecast.json
-**/config/priceForecast.json
-salmon-twin/config/priceForecast_test.json
-*/config/priceForecast_test.json
-**/config/priceForecast_test.json
-salmon-twin/config/priceForecast_train.json
-*/config/priceForecast_train.json
-**/config/priceForecast_train.json
+# Cubrir todas las posibles ubicaciones del archivo estimators.json
+salmon-twin/config/estimators.json
+*/config/estimators.json
+**/config/estimators.json
 
 # Distribución / empaquetado
 dist/
