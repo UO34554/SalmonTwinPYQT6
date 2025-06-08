@@ -997,16 +997,14 @@ class dashBoardController:
     def _draw_schematic_3d(self,pos_i,pos_j,raft):        
         # Crear un widget 3D
         view = gl.GLViewWidget()
-        view.setBackgroundColor(pg.mkColor(0, 0, 80, 255))
+        view.setBackgroundColor(pg.mkColor(210, 225, 230, 255))
         # Configurar el rango inicial de la cámara
         view.setCameraPosition(distance=40, elevation=20, azimuth=45)
         # Agregar una cuadrícula para referencia
         grid = gl.GLGridItem()
-        grid.setColor((150,150,150,255))
+        grid.setColor((100,100,100,255))
         grid.scale(1, 1, 1)
-        view.addItem(grid)
-        # Dibujar la estructura circular de la balsa
-        self._create_balsa(view)
+        view.addItem(grid)        
         # Dibujar las redes bajo el agua
         self._create_nets(view)
         # Dibujar flotadores alrededor de la balsa
@@ -1016,53 +1014,117 @@ class dashBoardController:
         # Mostrar el widget 3D        
         self._view.centralwidget.layout().addWidget(view,pos_i,pos_j)
 
-    # Crear la estructura circular de la balsa
-    def _create_balsa(self,view):
-        # Estructura de la balsa (círculo)
-        radius = 10
-        theta = np.linspace(0, 2 * np.pi, 100)
-        x = radius * np.cos(theta)
-        y = radius * np.sin(theta)
-        z = np.zeros_like(x)
+    # Helper para generar los datos de malla de un toroide
+    def _create_torus_mesh_data(self, major_radius, minor_radius, z_offset, major_segments, minor_segments):
+        vertices = []
+        faces = []
+        
+        # Generar vértices
+        for i in range(major_segments + 1): # u (ángulo alrededor del eje Z principal del toroide)
+            u_angle = 2 * np.pi * i / major_segments
+            cos_u = np.cos(u_angle)
+            sin_u = np.sin(u_angle)
+            
+            for j in range(minor_segments + 1): # v (ángulo alrededor del círculo del tubo del toroide)
+                v_angle = 2 * np.pi * j / minor_segments
+                cos_v = np.cos(v_angle)
+                sin_v = np.sin(v_angle)
+                
+                # Coordenadas del toroide
+                x = (major_radius + minor_radius * cos_v) * cos_u
+                y = (major_radius + minor_radius * cos_v) * sin_u
+                z = z_offset + minor_radius * sin_v # z_offset es el nivel Z del centro del toroide
+                vertices.append([x, y, z])
 
-        # Crear una línea circular
-        balsa = gl.GLLinePlotItem(pos=np.array([x, y, z]).T, color=(1, 0, 0, 1), width=2)
-        view.addItem(balsa)
+        vertices = np.array(vertices)
+
+        # Generar caras (formando quads, divididos en dos triángulos)
+        for i in range(major_segments):
+            for j in range(minor_segments):
+                # Índices de los 4 vértices que forman un quad en la superficie del toroide
+                v1_idx = i * (minor_segments + 1) + j
+                v2_idx = (i + 1) * (minor_segments + 1) + j
+                v3_idx = (i + 1) * (minor_segments + 1) + (j + 1)
+                v4_idx = i * (minor_segments + 1) + (j + 1)
+                
+                # Crear dos triángulos para el quad
+                faces.append([v1_idx, v2_idx, v4_idx]) # Triángulo 1
+                faces.append([v2_idx, v3_idx, v4_idx]) # Triángulo 2
+                
+        faces = np.array(faces)
+        return gl.MeshData(vertexes=vertices, faces=faces)
 
     # Crear redes bajo el agua
-    def _create_nets(self,view):
-        # Red (cilindro bajo la balsa)
-        radius = 10
-        height = 5
-        theta = np.linspace(0, 2 * np.pi, 50)
-        z = np.linspace(0, -height, 2)
-        bottom_circle = []  # Coordenadas del fondo del cilindro
-        for t in theta:
-            x = np.array([radius * np.cos(t), radius * np.cos(t)])
-            y = np.array([radius * np.sin(t), radius * np.sin(t)])
-            line = gl.GLLinePlotItem(pos=np.array([x, y, z]).T, color=(0, 0, 1, 0.5), width=1)
-            view.addItem(line)
-            # Agregar puntos del círculo inferior
-            bottom_circle.append([radius * np.cos(t), radius * np.sin(t), -height])
+    def _create_nets(self, view):
+        # Parámetros generales de la red
+        radius = 10                 # Radio de la balsa, será el radio mayor de los toroides
+        height = 5                  # Altura total de la red
+        num_vertical_supports = 24  # Número de cilindros verticales
+        num_horizontal_rings = 3    # Número de anillos horizontales intermedios (total num_horizontal_rings + 2 con top/bottom)
+        net_thickness = 0.1         # Grosor de los tubos de la red (radio menor de toroides y radio de cilindros)
+        
+        # Parámetros específicos para los toroides (anillos horizontales)
+        torus_major_segments = 40   # Segmentos a lo largo del perímetro del toroide (más = más suave)
+        torus_minor_segments = 12   # Segmentos para la sección transversal del tubo del toroide (más = tubo más redondo)
+        
+        # Color para la red (azul oscuro opaco)
+        net_color_tuple = (50/255, 70/255, 150/255, 255/255) # (0.196, 0.275, 0.588, 1.0)
 
-        # Dibujar el fondo como un círculo cerrado
-        bottom_circle = np.array(bottom_circle)
-        bottom_circle = np.vstack([bottom_circle, bottom_circle[0]])  # Cerrar el círculo
-        bottom = gl.GLLinePlotItem(pos=bottom_circle, color=(0, 0, 1, 0.5), width=1)
-        view.addItem(bottom)
+        # 1. Soportes Verticales (Cilindros)
+        for i in range(num_vertical_supports):
+            angle = 2 * np.pi * i / num_vertical_supports
+            x_pos = radius * np.cos(angle)
+            y_pos = radius * np.sin(angle)
+
+            mesh_data_vertical = gl.MeshData.cylinder(rows=2, cols=12, 
+                                                      radius=[net_thickness, net_thickness], 
+                                                      length=height)
+            vertical_support = gl.GLMeshItem(meshdata=mesh_data_vertical, smooth=True, 
+                                             color=net_color_tuple, shader='shaded')
+            
+            vertical_support.translate(x_pos, y_pos, -height) 
+            view.addItem(vertical_support)
+
+        # 2. Anillos Horizontales (Toroides)
+        # Se incluyen los perímetros superior (z=0) e inferior (z=-height), más los intermedios.
+        ring_z_levels = np.linspace(0, -height, num_horizontal_rings + 2)
+
+        for z_level in ring_z_levels:
+            # Crear datos de malla para el toroide
+            torus_mesh_data = self._create_torus_mesh_data(
+                major_radius=radius,           # Radio grande del toroide (radio de la balsa)
+                minor_radius=net_thickness,    # Radio pequeño del toroide (grosor del tubo)
+                z_offset=z_level,              # Nivel Z del centro del toroide
+                major_segments=torus_major_segments,
+                minor_segments=torus_minor_segments
+            )
+            
+            torus_item = gl.GLMeshItem(meshdata=torus_mesh_data, smooth=True,
+                                         color=net_color_tuple, shader='shaded')
+            
+            # El toroide ya se genera en su posición y orientación correctas.
+            view.addItem(torus_item)
 
     # Crear flotadores (esferas distribuidas en el círculo)
     def _create_flotadores(self,view):
         # Flotadores (esferas distribuidas en el círculo)
         radius = 10
         flotador_positions = 8
+        flotador_radius = 0.5 # Radio de la esfera del flotador
+        flotador_color = (0.2, 0.8, 0.2, 1) # Verde más brillante y opaco
+
         for i in range(flotador_positions):
             angle = 2 * np.pi / flotador_positions * i
             x = radius * np.cos(angle)
             y = radius * np.sin(angle)
-            z = 0
-            sphere = gl.GLScatterPlotItem(pos=np.array([[x, y, z]]), size=20, color=(0.1, 0.6, 0.1, 1))
-            view.addItem(sphere)    
+            z = 0 # Los flotadores están en la superficie (z=0)
+
+            # Crear una malla de esfera para cada flotador
+            mesh_data_flotador = gl.MeshData.sphere(rows=10, cols=10, radius=flotador_radius)
+            sphere_item = gl.GLMeshItem(meshdata=mesh_data_flotador, smooth=True,
+                                        color=flotador_color, shader='shaded')
+            sphere_item.translate(x, y, z)
+            view.addItem(sphere_item)    
 
     # Crear peces (esferas pequeñas dentro de la red)
     def _create_fish(self, view, raft):
