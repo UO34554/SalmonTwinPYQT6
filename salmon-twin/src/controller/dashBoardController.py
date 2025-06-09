@@ -111,7 +111,7 @@ class dashBoardController:
             alpha = 7000.0                                  # Peso máximo asintótico en gramos (7kg)
             beta = 0.02004161                               # Coeficiente de pendiente
             mu = 17.0                                       # Punto de inflexión en meses
-            mortality_rate = 0.05                           # Tasa mensual de mortandad (5%)
+            mortality_rate = 0.015                          # Tasa mensual de mortandad (1,5%)
             initial_weight = 100.0                          # Peso inicial del salmón en gramos (100g)            
             initial_number_fishes = raft.getNumberFishes()  # Cantidad inicial de peces
             
