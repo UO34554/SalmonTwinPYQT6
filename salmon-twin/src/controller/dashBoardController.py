@@ -1371,7 +1371,7 @@ class dashBoardController:
             return None       
 
     # --- Grafico 2d ---
-    def _draw_raft_2D(self, scene, scene_size, cage_radius):
+    def _draw_raft_2D(self, scene, scene_size, cage_radius, deltaY=0.0):
         # Definir el área de la escena
         scene.setSceneRect(-scene_size/2, -scene_size/2, scene_size, scene_size)
         # Colores        
@@ -1384,22 +1384,22 @@ class dashBoardController:
         float_brush = QBrush(float_color)        
 
         # 1. Estructura Flotante (Círculo principal)
-        floating_structure = scene.addEllipse(-cage_radius*3, -cage_radius*3,
+        floating_structure = scene.addEllipse(-cage_radius*3, -cage_radius*3 + deltaY,
                                                cage_radius*4,  cage_radius*4,
                                                   pen, float_brush)
         floating_structure.setToolTip(cfg.DASHBOARD_GRAPH_MAINSTRUCTURE_MSG)
         # 2. Red de la Jaula
-        net = scene.addEllipse(-cage_radius*3 + 5, -cage_radius*3 + 5,
+        net = scene.addEllipse(-cage_radius*3 + 5, -cage_radius*3 + 5 + deltaY,
                                      4 * cage_radius - 10, 4 * cage_radius - 10,
                                      pen, net_brush)
         net.setToolTip(cfg.DASHBOARD_GRAPH_NET_MSG)
         # 3. Soportes (Ejemplo: líneas radiales)
         num_supports = 8
-        support_length = cage_radius + 15
+        support_length = cage_radius + 15 + deltaY / 2  # Longitud de los soportes
         for i in range(num_supports):
             angle = 360 / num_supports * i            
             x1 = -cage_radius
-            y1 = -cage_radius
+            y1 = -cage_radius + deltaY
             x2 = x1 + support_length * math.cos(math.radians(angle))
             y2 = y1 + support_length * math.sin(math.radians(angle))
             support = scene.addLine(x1, y1, x2, y2, QPen(support_color, 2))
@@ -1409,7 +1409,7 @@ class dashBoardController:
         for i in range(num_supports):
             angle = 360 / num_supports * i            
             x = -cage_radius + (support_length + anchor_size) * math.cos(math.radians(angle))
-            y = -cage_radius + (support_length + anchor_size) * math.sin(math.radians(angle))
+            y = -cage_radius + deltaY + (support_length + anchor_size) * math.sin(math.radians(angle))
             anchor = scene.addRect(x - anchor_size / 2, y - anchor_size / 2,
                                          anchor_size, anchor_size, pen, QBrush(Qt.blue))
             anchor.setToolTip(cfg.DASHBOARD_GRAPH_ANCHOR_MSG)
@@ -1436,21 +1436,22 @@ class dashBoardController:
                 }
                 """)
             # Configurar un tamaño inicial para la escena
+            deltaY = 25      
             if isCrrent:
                 view.setMaximumWidth(350)
-                view.setMaximumHeight(350)
-                scene_size = 200
-                cage_radius = scene_size / 10
+                view.setMaximumHeight(165)
+                scene_size = 150
+                cage_radius = 20
                 font_name_size = 14
                 font_title_size = 12
                 font_info_size = 11
                 multiplier_pos = 5
-                self._draw_raft_2D(scene,scene_size,cage_radius)        
+                self._draw_raft_2D(scene,scene_size,cage_radius, deltaY)        
                 view.setScene(scene)       
             else:
                 view.setMaximumWidth(270)
-                view.setMaximumHeight(270)
-                scene_size = 150
+                view.setMaximumHeight(140)
+                scene_size = 130
                 cage_radius = scene_size / 10
                 font_name_size = 10
                 font_title_size = 9
@@ -1471,32 +1472,70 @@ class dashBoardController:
                 optimal_date = "N/A"
                 expected_value = 0
 
-            # Nombre de la balsa
-            raft_name = scene.addText(raft.getName(), QFont("Arial", font_name_size, QFont.Bold))
-            raft_name.setDefaultTextColor(QColor(0, 0, 0))
-            raft_name.setPos(-cage_radius*4, -cage_radius*5)
+            if isCrrent:
+                # Nombre de la balsa
+                raft_name = scene.addText(raft.getName(), QFont("Arial", font_name_size, QFont.Bold))
+                raft_name.setDefaultTextColor(QColor(0, 0, 0))
+                raft_name.setPos(-cage_radius*4, -cage_radius*5 + deltaY)  # Ajustar la posición vertical según el deltaY
+            else:
+                # Nombre de la balsa
+                raft_name = scene.addText(raft.getName(), QFont("Arial", font_name_size, QFont.Bold))
+                raft_name.setDefaultTextColor(QColor(0, 0, 0))
+                raft_name.setPos(-cage_radius*4, -cage_radius*5 - deltaY/3)  # Ajustar la posición vertical según el deltaY
 
-            # Título        
-            title_text = scene.addText("Información de Cosecha", QFont("Arial", font_title_size, QFont.Bold))
-            title_text.setDefaultTextColor(QColor(0, 0, 0))
-            title_text.setPos(-cage_radius*multiplier_pos, cage_radius*1.5)
+            if not isCrrent:
+                # Título        
+                title_text = scene.addText("Información de Cosecha", QFont("Arial", font_title_size, QFont.Bold))
+                title_text.setDefaultTextColor(QColor(0, 0, 0))
+                title_text.setPos(-cage_radius*multiplier_pos, cage_radius*1.5)    
+            
+                # Valor esperado
+                value_text = scene.addText(f"Valor esperado: {expected_value:.2f} EUR", QFont("Arial", font_info_size))
+                value_text.setDefaultTextColor(QColor(0, 100, 0))  # Verde
+                value_text.setPos(-cage_radius*multiplier_pos, cage_radius*2.5)
     
-            # Valor esperado
-            value_text = scene.addText(f"Valor esperado: {expected_value:.2f} EUR", QFont("Arial", font_info_size))
-            value_text.setDefaultTextColor(QColor(0, 100, 0))  # Verde
-            value_text.setPos(-cage_radius*multiplier_pos, cage_radius*2.5)
-    
-            # Fecha óptima
-            date_text = scene.addText(f"Recogida óptima: {optimal_date}", QFont("Arial", font_info_size))
-            date_text.setDefaultTextColor(QColor(0, 0, 150))  # Azul
-            date_text.setPos(-cage_radius*multiplier_pos, cage_radius*3.5)
+                # Fecha óptima
+                date_text = scene.addText(f"Recogida óptima: {optimal_date}", QFont("Arial", font_info_size))
+                date_text.setDefaultTextColor(QColor(0, 0, 150))  # Azul
+                date_text.setPos(-cage_radius*multiplier_pos, cage_radius*3.5)
     
             # Solo añadir el view al layout
             if isCrrent:
                 grid_layout.addWidget(view, 0, 0, 1, 1)
             else:
                 col += 1
-                grid_layout.addWidget(view, 0, col, 1, 1)  
+                grid_layout.addWidget(view, 0, col, 1, 1)
+
+        #Cuadro de información con el resultado de la balsa actual
+        viewResult = QWidget()
+        viewResultLayout = QGridLayout(viewResult)       
+        lforescastValue = QLabel("Valor esperado: N/A")
+        lcurrentDate = QLabel("Recogida óptima: N/A")
+        label_style_big = """
+            QLabel {
+                font-size: 18px; /* Tamaño de la letra */
+                background-color: rgba(200, 200, 200, 150); /* Fondo semitransparente */
+                color: black; /* Color del texto */
+                border: 1px solid gray; /* Opcional: borde */
+                padding: 1px; /* Margen interno */
+            }
+        """
+        lforescastValue.setStyleSheet(label_style_big)
+        lcurrentDate.setStyleSheet(label_style_big)
+        viewResultLayout.addWidget(lforescastValue,0,0,1,col+1)
+        viewResultLayout.addWidget(lcurrentDate,1,0,1,col+1)
+        grid_layout.addWidget(viewResult, 1, 0, 1, col+1)
+
+        if currentRaft is not None:
+          result = self._calculate_optimal_harvest_date(currentRaft)
+          if result is not None:
+            date, biomass, price, nFishes, total = result
+            optimal_date = date.strftime("%d/%m/%Y") if hasattr(date, 'strftime') else "N/A"
+            expected_value = total if total is not None else 0
+            # Actualizar etiquetas con los valores calculados
+            lforescastValue.setText(f"Valor esperado: {expected_value:.2f} EUR")
+            lcurrentDate.setText(f"Recogida óptima: {optimal_date}")
+                 
         
         self._view.centralwidget.layout().addWidget(main_widget,pos_i,pos_j)
     # --- Fin Grafico 2d ---
