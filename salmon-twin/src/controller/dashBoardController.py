@@ -1000,6 +1000,12 @@ class dashBoardController:
         view.setBackgroundColor(pg.mkColor(210, 225, 230, 255))
         # Configurar el rango inicial de la cámara
         view.setCameraPosition(distance=40, elevation=20, azimuth=45)
+        # --- Añadir Título al Gráfico 3D ---
+        title_text = "Biomasa en " + raft.getName()
+        text_item = gl.GLTextItem(text=title_text, color=(0,0,0,255), font=QFont("Arial", 18))
+        text_item.setData(pos=np.array([0, 0, 5]), text=title_text)
+        view.addItem(text_item)
+       
         # Agregar una cuadrícula para referencia
         grid = gl.GLGridItem()
         grid.setColor((100,100,100,255))
