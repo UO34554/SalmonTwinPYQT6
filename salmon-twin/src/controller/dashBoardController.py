@@ -245,10 +245,7 @@ class dashBoardController:
             if self.dateSliderCurrent is None:
                 sliderValue = 0
             else:
-                sliderValue = self.dateSliderCurrent.value()
-            if sliderValue==0:
-                auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_PERIOD_ERROR)
-                return
+                sliderValue = self.dateSliderCurrent.value()            
             
             # Guardar el valor del slider en la balsa como porcentaje
             raft.setPerCentage(sliderValue)
@@ -280,6 +277,13 @@ class dashBoardController:
                 dataTemp = pd.concat([df_hist, df_balsa], ignore_index=True)
             else:
                 dataTemp = df_balsa
+
+            # Verificar que tenemos suficientes datos para la predicción
+            # Al menos 6 meses de datos para el modelo temperatura
+            # La temperatura tiene una frecuencia mensual, por lo que 6 meses son 6 puntos
+            if len(dataTemp)< 6:
+                auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_PERIOD_ERROR)
+                return
 
             # Dias de predicción
             forescastDays = (raft.getEndDate() - forescast_start_date).days
