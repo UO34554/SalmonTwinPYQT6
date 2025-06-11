@@ -332,6 +332,24 @@ class DataPrice:
             self.lastError="Error: {e}"
             return False
 
+    # Se aplica un suavizado mensual a los datos de precios    
+    def smoothPriceMonthly(self):        
+        if self._price_data is None:
+            self.lastError = cfg.PRICEMODEL_ERROR_NO_PRICE_DATA
+            return False
+        
+        try:
+            # Convertir la columna 'timestamp' a datetime si no lo está
+            self._price_data['timestamp'] = pd.to_datetime(self._price_data['timestamp'], errors='coerce')
+            # Agrupar por mes y calcular la media
+            monthly_data = self._price_data.resample('MS', on='timestamp')[['EUR_kg']].mean().reset_index()            
+            # Asignar el resultado al atributo _price_data
+            self._price_data = monthly_data
+            return True
+        except Exception as e:
+            self.lastError = cfg.PRICEMODEL_ERROR_SMOOTH_PRICE.format(e=e.args[0])
+            return False
+
     # Se obtiene el dataframe de precios procesados
     # Parámetros:
     # None
@@ -348,18 +366,14 @@ class DataPrice:
     def getPriceDataForecast(self):        
         return self._price_data_forescast
     
-    # Se asignan los datos de precios a la variable de instancia
+    # Se establece el dataframe de precios procesados
     # Parámetros:
-    # data (pd.DataFrame): DataFrame que contiene los datos de precios
-    # Se espera que el dataframe contenga las columnas 'Year', 'Week' y 'EUR_kg'
+    # data: DataFrame con los datos de precios procesados
     # Retorna:
-    # bool: True si se asignaron correctamente, False en caso contrario
+    # None
     def setPriceData(self, data):        
         self._price_data = data.copy()
-        # Se procesan los datos de precios
-        if not self.parsePrice(self._price_data):
-            return False
-        return True    
+        
     
     """
     Optimiza simultáneamente las estadísticas, tamaños de ventana y parámetros del regresor
@@ -605,13 +619,13 @@ class DataPrice:
             filtered_data = filtered_data.dropna(subset=['timestamp'])
             
             if prev_start_date:
-                filtered_data = filtered_data[filtered_data['timestamp'].dt.date >= prev_start_date]
+                filtered_data = filtered_data[filtered_data['timestamp'].dt.date >= prev_start_date]                
             elif start_date:
                 filtered_data = filtered_data[filtered_data['timestamp'].dt.date >= start_date]
                 
             # Filtrar por fecha final si se proporciona
             if end_date:
-                filtered_data = filtered_data[filtered_data['timestamp'].dt.date <= end_date]
+                filtered_data = filtered_data[filtered_data['timestamp'].dt.date <= end_date]                
                 
             # Asegurarse de que el DataFrame esté ordenado por la columna 'timestamp'
             filtered_data = filtered_data.sort_values(by='timestamp')
@@ -622,7 +636,7 @@ class DataPrice:
                 return False
             
             # Define el porcentaje para el conjunto de entrenamiento
-            delta_days = (end_date - start_date).days
+            delta_days = (filtered_data['timestamp'].dt.date.max() - start_date).days
             if delta_days > 0:  # Protect against division by zero
                 current_day_offset = int(delta_days * percent)
                 current_date = start_date + timedelta(days=current_day_offset)
@@ -633,12 +647,18 @@ class DataPrice:
                 'y': filtered_data['EUR_kg'].astype(float)  # Convertir toda la columna a float
             })
             train = data[data['ds'].dt.date <= current_date]
-            delta_days_forecast = (delta_days - current_day_offset)// 7  # Calcular el número de semanas restantes
+            test = data[data['ds'].dt.date > current_date]
+            # 30.4375 es el promedio de días en un mes (365.25 / 12)
+            delta_days_forescast = (test['ds'].dt.date.max() - test['ds'].dt.date.min()).days
+            if delta_days_forescast > 0:
+                delta_months_forecast = max(1, int(1 + round(delta_days_forescast / 30.4375)))
+            else:
+                delta_months_forecast = 0
 
             # Variables fijadas para la búsqueda
             if not adjust:
-                # Si no se ajusta, se fijan las ventanas y estadísticas por defecto
-                windows = [4, 12, 26, 53]
+                # Si no se ajusta, se fijan las ventanas y estadísticas por defecto                
+                windows = [min(4, len(train)-4), min(12, len(train)-3), min(26, len(train)-2), min(53, len(train)-1)]
                 stats = ["mean", "mean","mean","mean"]
                 lags_to_use = min(53, len(train)-1)  # Asegurarse de que lags no exceda el tamaño de train
                 params = {'random_state': 15926,'verbose': -1}            
@@ -683,17 +703,17 @@ class DataPrice:
             )
             forecaster.fit(y_train)
             # Generar predicciones para el número de semanas restantes
-            predictions = forecaster.predict(steps=delta_days_forecast)
+            predictions = forecaster.predict(steps=delta_months_forecast)
             
             self._price_data_forescast = pd.DataFrame({
-                'ds': pd.date_range(start=current_date, periods=delta_days_forecast, freq='W'),
+                'ds': pd.date_range(start=current_date, periods=delta_months_forecast, freq='M'),
                 'y': predictions.values
             })
             
             return True
 
-        except ValueError as e:
-            self.lastError= cfg.PRICEMODEL_FIT_ERROR.format(e=e.args[0])
+        except Exception as e:
+            self.lastError= cfg.PRICEMODEL_FIT_ERROR.format(e=str(e))
             return False
 
     # Se guardan los mejores estimadores en un archivo JSON    

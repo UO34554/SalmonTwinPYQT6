@@ -335,11 +335,9 @@ class dashBoardController:
             price_data = df_balsa
 
         # Establecer los datos en el modelo
-        if not self.priceModel.setPriceData(price_data):
-            auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
-            return
+        self.priceModel.setPriceData(price_data)        
                                   
-        # Llamar al método fit_price con las fechas específicas
+        # Verificar slider
         if self.dateSliderCurrent is None:
             sliderValue = 0
             auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_PERIOD_ERROR)
@@ -356,6 +354,7 @@ class dashBoardController:
         else:
             adjust = False
 
+        # Llamar al método fit_price con las fechas específicas
         if self.priceModel.fit_price(perCent, start_date, end_date, adjust, estimator, prev_start_date=prev_start_date):
             # Guardar los datos de precios en la balsa
             raft.setPerCentage(sliderValue)           
@@ -402,10 +401,8 @@ class dashBoardController:
             price_data = df_balsa
 
         # Establecer los datos en el modelo
-        if not self.priceModel.setPriceData(price_data):
-            auxTools.show_error_message(cfg.DASHBOARD_PREDICT_PRICE_ERROR.format(error=self.priceModel.lastError))
-            return
-    
+        self.priceModel.setPriceData(price_data)
+        
         # Verificar slider
         if self.dateSliderCurrent is None:
             auxTools.show_error_message(cfg.DASBOARD_NO_TEMP_PERIOD_ERROR)
@@ -2088,7 +2085,11 @@ class dashBoardController:
         if file_type == "csv":            
                 if self.dataLoader.load_from_csv(filepath, separator):
                     if self.priceModel.parsePrice(self.dataLoader.getData()):
-                        return True
+                        if self.priceModel.smoothPriceMonthly():
+                            return True
+                        else:
+                            self.lastError = self.priceModel.lastError
+                            return False
                     else:
                         self.lastError = cfg.DASHBOARD_PRICE_PARSE_ERROR+ ":" + filepath
                         return False
