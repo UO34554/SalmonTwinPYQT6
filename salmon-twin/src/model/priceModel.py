@@ -576,7 +576,11 @@ class DataPrice:
                 continue
     
         # 8. Ordenar y mostrar mejores resultados
-        results.sort(key=lambda x: x['score'],reverse=True)        
+        results.sort(key=lambda x: x['score'],reverse=True)
+        # Depuración de resultados
+        print(f"train ini:{train['ds'].dt.date.min()} fin:{train['ds'].dt.date.max()}")
+        print(f"test ini:{test['ds'].dt.date.min()} fin:{test['ds'].dt.date.max()}")
+        # Resumen de resultados        
         print("\nMejores 5 configuraciones encontradas:")
         for i, result in enumerate(results[:5]):
             print(f"{i+1}. (score: {result['score']:.4f}) Stats: {result['stats']}")
@@ -706,7 +710,7 @@ class DataPrice:
             predictions = forecaster.predict(steps=delta_months_forecast)
             
             self._price_data_forescast = pd.DataFrame({
-                'ds': pd.date_range(start=current_date, periods=delta_months_forecast, freq='M'),
+                'ds': pd.date_range(start=current_date, periods=delta_months_forecast, freq='MS'),
                 'y': predictions.values
             })
             

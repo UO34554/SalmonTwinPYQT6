@@ -209,8 +209,9 @@ class dashBoardController:
     def _select_top_estimator_dialog(self):
         # Cargar los mejores estimadores de precios
         items = self.priceModel.get_saved_top_estimators()
-        if len(items) == 0 and self.priceModel.lastError is not None:
-            auxTools.show_error_message(cfg.DASHBOARD_PREDICT_GET_ESTIMATORS_ERROR.format(error=self.priceModel.lastError))
+        if len(items) == 0:
+            auxTools.show_error_message(cfg.DASHBOARD_PREDICT_GET_ESTIMATORS)
+            auxTools.show_error_message(cfg.DASHBOARD_SELECT_ESTIMATOR_MESSAGE)
             return None
         
         descs = []
