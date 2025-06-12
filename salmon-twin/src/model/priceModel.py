@@ -64,6 +64,8 @@ class DataPrice:
         
             # Información inicial para diagnóstico
             total_records = len(self._price_data)
+            print(f"Total registros originales: {total_records}")
+            print(f"fechas: {start_date} - {end_date} Fecha anterior:{prev_start_date}")
         
             # Filtrar datos basado en las fechas seleccionadas
             filtered_data = self._price_data.copy()
@@ -73,7 +75,7 @@ class DataPrice:
             records_after_date_parsing = len(filtered_data)
             invalid_dates = total_records - records_after_date_parsing
             # Filtrar por fecha previa si se proporciona
-            if prev_start_date:
+            if prev_start_date:                
                 filtered_data = filtered_data[filtered_data['timestamp'].dt.date >= prev_start_date]
             elif start_date:
                 filtered_data = filtered_data[filtered_data['timestamp'].dt.date >= start_date]
@@ -85,6 +87,8 @@ class DataPrice:
             # Contar registros después del filtrado por fecha
             records_after_date_filter = len(filtered_data)
             records_filtered_out = records_after_date_parsing - records_after_date_filter
+            print(f"Registros después del filtrado por fecha: {records_after_date_filter}")
+            print(f"Registros filtrados por fecha inválida: {invalid_dates}")
         
             # Diagnóstico detallado de datos insuficientes
             if len(filtered_data) < 10:
@@ -133,6 +137,8 @@ class DataPrice:
         
             train = data[data['ds'].dt.date <= current_date]
             test = data[data['ds'].dt.date > current_date]
+            print(f"Datos de entrenamiento: {len(train)}, Datos de prueba: {len(test)}")
+
         
             # Verificación de datos de entrenamiento insuficientes con diagnóstico detallado
             if len(train) < 5:
@@ -276,7 +282,7 @@ class DataPrice:
             future_dates = pd.date_range(
                 start=last_date,
                 periods=len(test),
-                freq='W'
+                freq='MS'
             )
             
             # Guardar resultados
@@ -500,6 +506,7 @@ class DataPrice:
                 # Regresor con los parámetros seleccionados
                 regressor = LGBMRegressor(**params)
                 # Crear el modelo ForecasterRecursive con las características de regresor, lags y ventana
+                lags_to_use = [3,6,12,24]
                 forecaster = ForecasterRecursive(
                     regressor=regressor,                    
                     lags=lags_to_use,
@@ -572,8 +579,8 @@ class DataPrice:
                         progress_callback(i, None)         
             
             except Exception as e:
-                print(f"Error en iteración {i+1}: {e}")
-                continue
+                print(f"\nError en iteración {i+1}: {e}")
+                return None
     
         # 8. Ordenar y mostrar mejores resultados
         results.sort(key=lambda x: x['score'],reverse=True)
@@ -713,6 +720,14 @@ class DataPrice:
                 'ds': pd.date_range(start=current_date, periods=delta_months_forecast, freq='MS'),
                 'y': predictions.values
             })
+
+            # Mostrar parametros de entrenamiento
+            print("--- Parameters used for training ---")
+            print(f"Stats: {stats}")
+            print(f"Windows:{windows}")
+            print(f"Lags: {lags_to_use}")
+            print(f"Params: {params}")      
+            print("---")
             
             return True
 

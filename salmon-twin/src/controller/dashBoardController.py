@@ -216,7 +216,7 @@ class dashBoardController:
         
         descs = []
         for i, est in enumerate(items):
-            desc = f"#{i+1} | Score: {est['score']:.4f} | MAE: {est['mae']:.3f} | RMSE: {est['rmse']:.3f} | Stats: {est['stats']} | Windows: {est['windows']}"
+            desc = f"#{i+1} | Score: {est['score']:.4f} | MAE: {est['mae']:.3f} | RMSE: {est['rmse']:.3f} | DIR: {est['dir_acc']} | Stats: {est['stats']} | Windows: {est['windows']}"
             descs.append(desc)
 
         option = self.aux_list_dialog(descs, title=cfg.DASHBOARD_LIST_TITLE_ESTIMATOR, message=cfg.DASHBOARD_LIST_ESTIMATOR_MESSAGE)
@@ -311,8 +311,7 @@ class dashBoardController:
         
         # Obtener las fechas inicial y final de la balsa
         start_date = raft.getStartDate()
-        end_date = raft.getEndDate()
-        delta_days = (end_date - start_date).days
+        end_date = raft.getEndDate()        
 
         # Obtener todos los datos de precios
         price_data = raft.getPriceData()
@@ -325,7 +324,7 @@ class dashBoardController:
         price_data = price_data.dropna(subset=['timestamp'])
 
         # --- Añadir datos históricos previos al entrenamiento ---
-        prev_start_date = start_date - timedelta(days=delta_days)
+        prev_start_date = price_data['timestamp'].min().date()
         df_hist = price_data[(price_data['timestamp'].dt.date >= prev_start_date) & (price_data['timestamp'].dt.date < start_date)]
         df_hist = df_hist.sort_values('timestamp')
         df_balsa = price_data[(price_data['timestamp'].dt.date >= start_date) & (price_data['timestamp'].dt.date <= end_date)]
@@ -378,8 +377,7 @@ class dashBoardController:
         # Obtener las fechas y configurar datos en el modelo
         start_date = raft.getStartDate()
         end_date = raft.getEndDate()
-        delta_days = (end_date - start_date).days
-
+        
         # --- Añadir datos históricos previos al entrenamiento ---
         price_data = raft.getPriceData()
         if price_data is None or price_data.empty:
@@ -391,7 +389,7 @@ class dashBoardController:
         price_data = price_data.dropna(subset=['timestamp'])
 
         # Filtrar históricos previos (mismo rango de días que la balsa, justo antes)
-        prev_start_date = start_date - timedelta(days=delta_days)
+        prev_start_date = price_data['timestamp'].min().date()
         df_hist = price_data[(price_data['timestamp'].dt.date >= prev_start_date) & (price_data['timestamp'].dt.date < start_date)]
         df_hist = df_hist.sort_values('timestamp')
         df_balsa = price_data[(price_data['timestamp'].dt.date >= start_date) & (price_data['timestamp'].dt.date <= end_date)]
@@ -717,7 +715,8 @@ class dashBoardController:
         price_data = price_data.dropna(subset=['timestamp'])
 
         # --- Datos históricos previos a la balsa (mismo rango de días que la balsa) ---
-        prev_start_date = start_date - timedelta(days=delta_days)
+        #prev_start_date = start_date - timedelta(days=delta_days)
+        prev_start_date = price_data['timestamp'].min().date()
         df_hist = price_data[(price_data['timestamp'].dt.date >= prev_start_date) & (price_data['timestamp'].dt.date < start_date)]
         df_hist = df_hist.sort_values('timestamp')
         
