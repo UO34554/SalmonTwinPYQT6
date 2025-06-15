@@ -1435,14 +1435,14 @@ class dashBoardController:
             # 5. Añadir cajas informativas con valor esperado y fecha óptima
             # Intentar calcular los valores
             result = self._calculate_optimal_harvest_date(raft)
-            if result is not None:
-                date, biomass, price, nFishes, total = result
+            date, biomass, price, nFishes, total = result
+            if result is not None and total>0:                
                 optimal_date = date.strftime("%d/%m/%Y") if hasattr(date, 'strftime') else "N/A"
                 expected_value = total if total is not None else 0
             else:
                 # Valores predeterminados cuando no se puede calcular
                 optimal_date = "N/A"
-                expected_value = 0
+                expected_value = "N/A"
 
             if isCrrent:
                 # Nombre de la balsa
@@ -1462,13 +1462,21 @@ class dashBoardController:
                 title_text.setPos(-cage_radius*multiplier_pos, cage_radius*1.5)    
             
                 # Valor esperado
-                value_text = scene.addText(f"Valor esperado: {expected_value:.2f} EUR", QFont("Arial", font_info_size))
-                value_text.setDefaultTextColor(QColor(0, 100, 0))  # Verde
+                if expected_value == "N/A":
+                    value_text = scene.addText("Valor esperado: N/A", QFont("Arial", font_info_size))
+                    value_text.setDefaultTextColor(QColor(150, 0, 0)) # Rojo
+                else:
+                    value_text = scene.addText(f"Valor esperado: {expected_value:.2f} EUR", QFont("Arial", font_info_size))
+                    value_text.setDefaultTextColor(QColor(0, 100, 0))  # Verde
                 value_text.setPos(-cage_radius*multiplier_pos, cage_radius*2.5)
     
                 # Fecha óptima
-                date_text = scene.addText(f"Recogida óptima: {optimal_date}", QFont("Arial", font_info_size))
-                date_text.setDefaultTextColor(QColor(0, 0, 150))  # Azul
+                if optimal_date == "N/A":
+                    date_text = scene.addText("Recogida óptima: N/A", QFont("Arial", font_info_size))
+                    date_text.setDefaultTextColor(QColor(150, 0, 0)) # Rojo
+                else:
+                    date_text = scene.addText(f"Recogida óptima: {optimal_date}", QFont("Arial", font_info_size))
+                    date_text.setDefaultTextColor(QColor(0, 100, 0))  # Verde
                 date_text.setPos(-cage_radius*multiplier_pos, cage_radius*3.5)
     
             # Solo añadir el view al layout
@@ -1500,13 +1508,17 @@ class dashBoardController:
 
         if currentRaft is not None:
           result = self._calculate_optimal_harvest_date(currentRaft)
-          if result is not None:
-            date, biomass, price, nFishes, total = result
+          date, biomass, price, nFishes, total = result
+          if result is not None and total>0:            
             optimal_date = date.strftime("%d/%m/%Y") if hasattr(date, 'strftime') else "N/A"
             expected_value = total if total is not None else 0
             # Actualizar etiquetas con los valores calculados
             lforescastValue.setText(f"Valor esperado: {expected_value:.2f} EUR")
             lcurrentDate.setText(f"Recogida óptima: {optimal_date}")
+        else:
+            # Si no hay balsa actual, mostrar valores predeterminados
+            lforescastValue.setText("Valor esperado: N/A")
+            lcurrentDate.setText("Recogida óptima: N/A")
                  
         
         self._view.centralwidget.layout().addWidget(main_widget,pos_i,pos_j)
