@@ -90,10 +90,7 @@ class dashBoardController:
             if self.dateSliderCurrent is None:
                 sliderValue = 0
             else:
-                sliderValue = self.dateSliderCurrent.value()
-            if sliderValue==0:
-                auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_PERIOD_ERROR)
-                return
+                sliderValue = self.dateSliderCurrent.value()            
             # Guardar el valor del slider en la balsa como porcentaje
             raft.setPerCentage(sliderValue)
             # Calcular fecha de inicio de predicción
@@ -261,7 +258,8 @@ class dashBoardController:
             start_date = raft.getStartDate()
             end_date = raft.getEndDate()
             # Calcular la fecha de inicio del rango previo
-            prev_start_date = start_date - timedelta(days=delta_days)
+            dataTemp['ds'] = pd.to_datetime(dataTemp['ds'], errors='coerce')
+            prev_start_date = dataTemp['ds'].min().date()  # Fecha mínima de los datos de temperatura
             # Filtrar históricos previos (mismo rango de días que la balsa, justo antes)
             dataTemp['ds'] = pd.to_datetime(dataTemp['ds'], errors='coerce')
             dataTemp = dataTemp.dropna(subset=['ds'])
@@ -809,7 +807,7 @@ class dashBoardController:
                 plot_widget.addItem(self.price_vline_forescast)
                 self.price_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='b', width=2, style=Qt.DashLine))
                 plot_widget.addItem(self.price_vline) 
-                # Establecer posición inicial
+                # Establecer posición inicial                
                 initial_pos = x_forecast[0]
                 self.price_vline.setPos(initial_pos)
                 self.price_vline_forescast.setPos(initial_pos)
@@ -824,6 +822,8 @@ class dashBoardController:
                 
                 # Añadir línea vertical para la fecha actual                
                 self.price_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='b', width=2, style=Qt.DashLine))
+                initial_pos = x[0]
+                self.price_vline.setPos(initial_pos)
                 plot_widget.addItem(self.price_vline)
 
         # Establecer color negro para la leyenda
@@ -1900,7 +1900,7 @@ class dashBoardController:
             delta_days = (end_date - start_date).days
 
             # Calcular la fecha de inicio del rango previo
-            prev_start_date = start_date - timedelta(days=delta_days)
+            prev_start_date = df_temperature['ds'].dt.date.min()
 
             # Datos históricos previos a la balsa (mismo rango de días que la balsa)
             df_hist = df_temperature[(df_temperature['ds'].dt.date >= prev_start_date) & (df_temperature['ds'].dt.date < start_date)]
