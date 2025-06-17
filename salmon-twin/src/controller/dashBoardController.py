@@ -1997,19 +1997,32 @@ class dashBoardController:
                     plot_widget.plot(x_hist, y_hist, pen=pg.mkPen(color='#FFA500', width=2), name="Histórico previo", color='g')
 
                 # Graficar histórico de la balsa en azul
-                plot_widget.plot(x_balsa, y_balsa, pen=pg.mkPen(color='b', width=2), name="Histórico balsa", color='b')
+                if x_balsa.size > 0:
+                    plot_widget.plot(x_balsa, y_balsa, pen=pg.mkPen(color='b', width=2), name="Histórico balsa", color='b')
 
                 # Guardar referencia al widget y a los valores de X para actualizaciones posteriores
-                self._temp_plot_widget = plot_widget                         
-                self._temp_x_values = np.concatenate([x_hist, x_balsa]) if x_hist.size > 0 else x_balsa
+                self._temp_plot_widget = plot_widget
+                if x_balsa.size > 0:                         
+                    self._temp_x_values = np.concatenate([x_hist, x_balsa]) if x_hist.size > 0 else x_balsa
+                else:
+                    self._temp_x_values = x_hist
 
                 # Conectar la función para actualizar los ticks cuando cambia el rango
                 plot_widget.getViewBox().sigRangeChanged.connect(lambda vb, range_vals: self._update_temperature_axis_ticks(self._temp_x_values,range_vals[0]))
 
                 # Establecer los ticks iniciales
-                all_x = np.concatenate([x_hist, x_balsa]) if x_hist.size > 0 else x_balsa
-                all_y = np.concatenate([y_hist, y_balsa]) if y_hist.size > 0 else y_balsa
-                self._update_temperature_axis_ticks(self._temp_x_values,[all_x.min(), all_x.max()])
+                if x_balsa.size > 0:
+                    all_x = np.concatenate([x_hist, x_balsa]) if x_hist.size > 0 else x_balsa
+                    all_y = np.concatenate([y_hist, y_balsa]) if y_hist.size > 0 else y_balsa
+                elif x_hist.size > 0:
+                    all_x = x_hist
+                    all_y = y_hist
+                else:
+                    all_x = np.array([])
+                    all_y = np.array([])                    
+
+                if all_x.size > 0:    
+                    self._update_temperature_axis_ticks(self._temp_x_values,[all_x.min(), all_x.max()])
 
                 # Convertir la columna 'ds' a formato timestamp si no está ya en datetime
                 df_temperature['ds'] = pd.to_datetime(df_temperature['ds'], errors='coerce')
@@ -2028,10 +2041,16 @@ class dashBoardController:
                 plot_widget.addItem(scatter)
                 self.x_forecast = np.array([])
                 # Si no hay predicción, usar solo los datos históricos
-                min_x = all_x.min()
-                max_x = all_x.max()
-                min_y = all_y.min()
-                max_y = all_y.max()
+                if all_x.size > 0:
+                    min_x = all_x.min()
+                    max_x = all_x.max()
+                    min_y = all_y.min()
+                    max_y = all_y.max()
+                else:
+                    min_x = 0
+                    max_x = 1
+                    min_y = 0
+                    max_y = 1
 
             # Ajustar el zoom del gráfico para que se ajuste a los datos
             plot_widget.setXRange(min_x, max_x, padding=0.1)
@@ -2045,18 +2064,20 @@ class dashBoardController:
 
             # Añadir línea vertical para la fecha actual (usa un color diferente)
             self.date_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='b', width=2, style=Qt.DashLine))
+            initial_pos = None
             if self.x_forecast.size > 0:
                 initial_pos = self.x_forecast[0]
-            else:
+            elif len(x_balsa)>0:
                 initial_pos = x_balsa[0]  # Usa el primer valor histórico si no hay predicción
 
-            self.date_vline.setPos(initial_pos)
-            # Añadir línea vertical para la predicción con la fecha actual (usa un color diferente)                
-            self.date_vline_forescast = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine))
-            self.date_vline_forescast.setPos(initial_pos)
-            # Añadir la líneas verticales al gráfico
-            plot_widget.addItem(self.date_vline_forescast)
-            plot_widget.addItem(self.date_vline)                
+            if not initial_pos is None:
+                self.date_vline.setPos(initial_pos)
+                # Añadir línea vertical para la predicción con la fecha actual (usa un color diferente)                
+                self.date_vline_forescast = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine))
+                self.date_vline_forescast.setPos(initial_pos)
+                # Añadir la líneas verticales al gráfico
+                plot_widget.addItem(self.date_vline_forescast)
+                plot_widget.addItem(self.date_vline)                
         
         self._view.centralwidget.layout().addWidget(plot_widget,pos_i,pos_j)        
 
