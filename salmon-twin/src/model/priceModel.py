@@ -6,21 +6,15 @@ import pandas as pd
 from datetime import datetime, timedelta
 import config as cfg
 import numpy as np
-#from statsforecast import StatsForecast
-#from statsforecast.models import AutoARIMA, HoltWinters
-#import pmdarima as pm
-#from statsmodels.tsa.arima.model import ARIMA as StatsmodelsARIMA
 from skforecast.recursive import ForecasterRecursive
 from lightgbm import LGBMRegressor
 from skforecast.preprocessing import RollingFeatures
 from sklearn.metrics import mean_absolute_error, mean_squared_error
-from itertools import combinations_with_replacement
 from tqdm import tqdm
 import warnings as wn
 import random
 import os
 import json
-
 
 # Se define la clase DataPrice para gestionar los datos de precios
 # Esta clase se encarga de parsear los datos de precios, ajustarlos y predecirlos
