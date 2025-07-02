@@ -500,7 +500,7 @@ class DataPrice:
                 # Regresor con los parámetros seleccionados
                 regressor = LGBMRegressor(**params)
                 # Crear el modelo ForecasterRecursive con las características de regresor, lags y ventana
-                lags_to_use = [3,6,12,24]
+                #lags_to_use = [3,6,12,24]
                 forecaster = ForecasterRecursive(
                     regressor=regressor,                    
                     lags=lags_to_use,
