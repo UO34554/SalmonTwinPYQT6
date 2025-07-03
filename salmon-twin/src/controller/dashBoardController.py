@@ -106,8 +106,8 @@ class dashBoardController:
             
             # Parámetros del modelo Thyholdt (estos valores pueden ser ajustados según tus necesidades)
             alpha = 7000.0                                  # Peso máximo asintótico en gramos (7kg)
-            beta = 0.02004161                               # Coeficiente de pendiente
-            mu = 17.0                                       # Punto de inflexión en meses
+            beta = 0.018                                    # Coeficiente de pendiente
+            mu = 19.0                                       # Punto de inflexión en meses
             mortality_rate = 0.015                          # Tasa mensual de mortandad (1,5%)
             initial_weight = 100.0                          # Peso inicial del salmón en gramos (100g)            
             initial_number_fishes = raft.getNumberFishes()  # Cantidad inicial de peces
