@@ -19,7 +19,7 @@ class GrowthModel:
     # return W: peso medio del salmon en el tiempo t
     def _thyholdt_function(self, t, T, alpha, beta, mu):        
         
-        if t > 0:
+        if t > 0 and T > 0 and alpha > 0 and beta > 0 and mu > 0:
             result = (alpha/1000.0) / (1 + np.exp(-(beta * T) * (t - mu)))
         else:
             result = 0.0

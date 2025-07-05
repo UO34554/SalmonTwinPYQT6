@@ -107,14 +107,14 @@ class TestGrowthModel:
         expected = initial_fishes * (1 - mortality_rate) ** time_months
         assert abs(surviving_fishes - expected) < 1e-10
 
-    def test_thyholdt_growth_complete_model(self, growth_model: GrowthModel, sample_temperature_data: pd.DataFrame, sample_forecast_data: pd.DataFrame):
+    def test_thyholdt_growth_complete_model(self, growth_model: GrowthModel, sample_temperature_data: pd.DataFrame, sample_forecast_data: pd.DataFrame,thyholdt_params: dict):
         """
         UT-GM-004: Verificar modelo completo de crecimiento Thyholdt
         """
         # Arrange
-        alpha = 7000.0
-        beta = 0.02
-        mu = 17.0
+        alpha = thyholdt_params['alpha']
+        beta = thyholdt_params['beta']
+        mu = thyholdt_params['mu']
         mortality_rate = 0.015
         initial_weight = 100.0
         initial_number_fishes = 1000
@@ -144,14 +144,14 @@ class TestGrowthModel:
         # Verificar tendencia de crecimiento
         assert historical_growth['growth'].iloc[-1] > historical_growth['growth'].iloc[0]
 
-    def test_thyholdt_growth_continuity(self, growth_model: GrowthModel, sample_temperature_data: pd.DataFrame, sample_forecast_data: pd.DataFrame):
+    def test_thyholdt_growth_continuity(self, growth_model: GrowthModel, sample_temperature_data: pd.DataFrame, sample_forecast_data: pd.DataFrame,thyholdt_params: dict):
         """
         UT-GM-005: Verificar continuidad entre datos históricos y de predicción
         """
         # Arrange
-        alpha = 7000.0
-        beta = 0.02
-        mu = 17.0
+        alpha = thyholdt_params['alpha']
+        beta = thyholdt_params['beta']
+        mu = thyholdt_params['mu']
         mortality_rate = 0.015
         initial_weight = 100.0
         initial_number_fishes = 1000
@@ -177,13 +177,21 @@ class TestGrowthModel:
         """
         UT-GM-006: Verificar manejo de valores cero en parámetros
         """
-        # Test con alpha = 0 (peso máximo cero)
-        with pytest.raises((ValueError, ZeroDivisionError, AssertionError)):
-            growth_model._thyholdt_function(12, 10.0, 0.0, 0.02, 17.0)
+        # Test con alpha = 0 (peso máximo cero)        
+        result_alpha_zero = growth_model._thyholdt_function(12, 10.0, 0.0, 0.02, 17.0)
+        # Con alpha=0, el crecimiento debería ser cero
+        assert result_alpha_zero == 0, "Resultado con alpha=0 debe ser cero"
         
         # Test con beta = 0 (tasa de crecimiento cero)
         result_beta_zero = growth_model._thyholdt_function(12, 10.0, 7000.0, 0.0, 17.0)
         # Con beta=0, no debería haber crecimiento o debería ser mínimo
+        # uso un beta muy pequeño para calcular el resultado esperado
+        # calculo el resultado previsto
+        beta = 0.0000002  # Un valor muy pequeño para beta                
+        expected_growth = (7000.0/1000.0) / (1 + np.exp(-(beta * 10) * (12.0 - 17.0)))
+        assert np.isclose(result_beta_zero, expected_growth), "Resultado con beta=0 debe ser igual al crecimiento esperado"
+        # Verifico que el resultado sea no negativo
+        # Esto es importante porque la función puede devolver valores negativos si no se maneja correctamente
         assert result_beta_zero >= 0, "Resultado con beta=0 debe ser no negativo"
         
         # Test con tiempo = 0
@@ -192,23 +200,28 @@ class TestGrowthModel:
         
         # Test con temperatura = 0
         result_temp_zero = growth_model._thyholdt_function(12, 0.0, 7000.0, 0.02, 17.0)
-        assert result_temp_zero >= 0, "Resultado con temperatura=0 debe ser no negativo"
+        expected_growth = (7000.0/1000.0) / (1 + np.exp(0.0))  # Temperatura cero no afecta el crecimiento
+        assert result_temp_zero == expected_growth, "Resultado con temperatura=0 debe ser igual al crecimiento esperado"
 
     def test_thyholdt_function_negative_values(self, growth_model: GrowthModel):
         """
         UT-GM-007: Verificar manejo de valores negativos
-        """
-        # Test con tiempo negativo
-        with pytest.raises((ValueError, AssertionError)):
-            growth_model._thyholdt_function(-12, 10.0, 7000.0, 0.02, 17.0)
+        """     
+
+        # Test con tiempo negativo        
+        result_negative_time=growth_model._thyholdt_function(-12, 10.0, 7000.0, 0.02, 17.0)
+        assert isinstance(result_negative_time, (int, float)), "Debe retornar un número"
+        assert(result_negative_time >= 0), "El resultado con tiempo negativo debe ser no negativo"
         
         # Test con alpha negativo
-        with pytest.raises((ValueError, AssertionError)):
-            growth_model._thyholdt_function(12, 10.0, -7000.0, 0.02, 17.0)
+        result_negative_alpha = growth_model._thyholdt_function(12, 10.0, -7000.0, 0.02, 17.0)
+        assert isinstance(result_negative_alpha, (int, float)), "Debe retornar un número"
+        assert(result_negative_alpha >= 0), "El resultado con alpha negativo debe ser no negativo"
         
         # Test con beta negativo
-        with pytest.raises((ValueError, AssertionError)):
-            growth_model._thyholdt_function(12, 10.0, 7000.0, -0.02, 17.0)
+        result_negative_beta = growth_model._thyholdt_function(12, 10.0, 7000.0, -0.02, 17.0)
+        assert isinstance(result_negative_beta, (int, float)), "Debe retornar un número"
+        assert(result_negative_beta >= 0), "El resultado con beta negativo debe ser no negativo"
         
         # Test con temperatura negativa (podría ser válida en algunas condiciones)
         result_temp_negative = growth_model._thyholdt_function(12, -5.0, 7000.0, 0.02, 17.0)
