@@ -38,6 +38,14 @@ class DataTemperature:
                 for region in self.index_region:
                     self.data_regions[region].at[i, 'ds'] = pd.to_datetime(str(row['Año']) + '-' + self.temp_month_names[row['Mes']], format='%Y-%m')
                     self.data_regions[region].at[i, 'y'] = row[self.index_region[region]]
+
+            # Convertir las columnas 'ds' y 'y' a los tipos de datos correctos
+            # 'ds' debe ser de tipo datetime y 'y' debe ser de tipo numérico
+            # Esto es necesario para que la libreria Prophet pueda trabajar con los datos
+            # Se recorre cada región y se convierte el tipo de dato de las columnas
+            for region in self.index_region:
+                self.data_regions[region]['ds'] = pd.to_datetime(self.data_regions[region]['ds'])
+                self.data_regions[region]['y'] = pd.to_numeric(self.data_regions[region]['y'])
             return True
         except ValueError as e:
             self.lastError=("Error:" + e.__str__())
@@ -53,6 +61,7 @@ class DataTemperature:
             for i in self.index_region.keys():
                 if region == self.index_region[i]:
                     return self.data_regions[i]
+            self.lastError=cfg.REGION_NOT_FOUND.format(region)
             return None
         except KeyError:
             self.lastError=cfg.REGION_NOT_FOUND.format(region)

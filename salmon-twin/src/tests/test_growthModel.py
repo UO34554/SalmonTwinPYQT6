@@ -1,7 +1,6 @@
 import pytest
 import pandas as pd
 import numpy as np
-from datetime import datetime
 from model.growthModel import GrowthModel
 
 class TestGrowthModel:
@@ -37,7 +36,8 @@ class TestGrowthModel:
             'ds': dates,
             'yhat': [8.7, 8.4, 9.3, 10.8, 12.6, 15.1]
         })
-
+    
+    # Pruebas unitarias ****
     def test_thyholdt_function_basic_calculation(self, growth_model: GrowthModel, thyholdt_params: dict):
         """
         UT-GM-001: Validar cálculo básico de la función Thyholdt
@@ -105,73 +105,7 @@ class TestGrowthModel:
         # Verificar fórmula: N(t) = N₀ × (1 - r)ᵗ modelo discreto
         # donde N₀ es el número inicial de peces, r es la tasa de mortalidad y t es el tiempo en meses
         expected = initial_fishes * (1 - mortality_rate) ** time_months
-        assert abs(surviving_fishes - expected) < 1e-10
-
-    def test_thyholdt_growth_complete_model(self, growth_model: GrowthModel, sample_temperature_data: pd.DataFrame, sample_forecast_data: pd.DataFrame,thyholdt_params: dict):
-        """
-        UT-GM-004: Verificar modelo completo de crecimiento Thyholdt
-        """
-        # Arrange
-        alpha = thyholdt_params['alpha']
-        beta = thyholdt_params['beta']
-        mu = thyholdt_params['mu']
-        mortality_rate = 0.015
-        initial_weight = 100.0
-        initial_number_fishes = 1000
-        
-        # Act
-        historical_growth, forecast_growth = growth_model.thyholdt_growth(
-            sample_temperature_data, sample_forecast_data,
-            alpha, beta, mu, mortality_rate, initial_weight, initial_number_fishes
-        )
-        
-        # Assert
-        # Verificar estructura de datos
-        assert not historical_growth.empty
-        assert not forecast_growth.empty
-        
-        # Verificar columnas requeridas
-        required_cols = ['ds', 'function', 'growth', 'number_fishes', 'biomass']
-        for col in required_cols:
-            assert col in historical_growth.columns
-            assert col in forecast_growth.columns
-        
-        # Verificar valores lógicos
-        assert all(historical_growth['growth'] >= 0)
-        assert all(historical_growth['biomass'] >= 0)
-        assert all(historical_growth['number_fishes'] > 0)
-        
-        # Verificar tendencia de crecimiento
-        assert historical_growth['growth'].iloc[-1] > historical_growth['growth'].iloc[0]
-
-    def test_thyholdt_growth_continuity(self, growth_model: GrowthModel, sample_temperature_data: pd.DataFrame, sample_forecast_data: pd.DataFrame,thyholdt_params: dict):
-        """
-        UT-GM-005: Verificar continuidad entre datos históricos y de predicción
-        """
-        # Arrange
-        alpha = thyholdt_params['alpha']
-        beta = thyholdt_params['beta']
-        mu = thyholdt_params['mu']
-        mortality_rate = 0.015
-        initial_weight = 100.0
-        initial_number_fishes = 1000
-        
-        # Act
-        historical_growth, forecast_growth = growth_model.thyholdt_growth(
-            sample_temperature_data, sample_forecast_data,
-            alpha, beta, mu, mortality_rate, initial_weight, initial_number_fishes
-        )
-        
-        # Assert
-        # Verificar que el forecast tiene punto de unión
-        if not forecast_growth.empty and not historical_growth.empty:
-            last_historical_date = historical_growth['ds'].iloc[-1]
-            first_forecast_date = forecast_growth['ds'].iloc[0]
-            
-            # Si hay gap, debería existir punto de unión
-            if last_historical_date < first_forecast_date:
-                # El primer punto del forecast debería ser el último histórico
-                assert len(forecast_growth) > len(sample_forecast_data)
+        assert abs(surviving_fishes - expected) < 1e-10    
 
     def test_thyholdt_function_zero_values(self, growth_model: GrowthModel):
         """
@@ -367,3 +301,70 @@ class TestGrowthModel:
         # Test con temperatura muy alta (límite de supervivencia)
         result_hot = growth_model._thyholdt_function(12, 30.0, 7000.0, 0.02, 17.0)
         assert isinstance(result_hot, (int, float)), "Debe manejar temperaturas altas"
+
+    # Pruebas de integración ****
+    def test_thyholdt_growth_complete_model(self, growth_model: GrowthModel, sample_temperature_data: pd.DataFrame, sample_forecast_data: pd.DataFrame,thyholdt_params: dict):
+        """
+        IT-GM-004: Verificar modelo completo de crecimiento Thyholdt
+        """
+        # Arrange
+        alpha = thyholdt_params['alpha']
+        beta = thyholdt_params['beta']
+        mu = thyholdt_params['mu']
+        mortality_rate = 0.015
+        initial_weight = 100.0
+        initial_number_fishes = 1000
+        
+        # Act
+        historical_growth, forecast_growth = growth_model.thyholdt_growth(
+            sample_temperature_data, sample_forecast_data,
+            alpha, beta, mu, mortality_rate, initial_weight, initial_number_fishes
+        )
+        
+        # Assert
+        # Verificar estructura de datos
+        assert not historical_growth.empty
+        assert not forecast_growth.empty
+        
+        # Verificar columnas requeridas
+        required_cols = ['ds', 'function', 'growth', 'number_fishes', 'biomass']
+        for col in required_cols:
+            assert col in historical_growth.columns
+            assert col in forecast_growth.columns
+        
+        # Verificar valores lógicos
+        assert all(historical_growth['growth'] >= 0)
+        assert all(historical_growth['biomass'] >= 0)
+        assert all(historical_growth['number_fishes'] > 0)
+        
+        # Verificar tendencia de crecimiento
+        assert historical_growth['growth'].iloc[-1] > historical_growth['growth'].iloc[0]
+
+    def test_thyholdt_growth_continuity(self, growth_model: GrowthModel, sample_temperature_data: pd.DataFrame, sample_forecast_data: pd.DataFrame,thyholdt_params: dict):
+        """
+        IT-GM-005: Verificar continuidad entre datos históricos y de predicción
+        """
+        # Arrange
+        alpha = thyholdt_params['alpha']
+        beta = thyholdt_params['beta']
+        mu = thyholdt_params['mu']
+        mortality_rate = 0.015
+        initial_weight = 100.0
+        initial_number_fishes = 1000
+        
+        # Act
+        historical_growth, forecast_growth = growth_model.thyholdt_growth(
+            sample_temperature_data, sample_forecast_data,
+            alpha, beta, mu, mortality_rate, initial_weight, initial_number_fishes
+        )
+        
+        # Assert
+        # Verificar que el forecast tiene punto de unión
+        if not forecast_growth.empty and not historical_growth.empty:
+            last_historical_date = historical_growth['ds'].iloc[-1]
+            first_forecast_date = forecast_growth['ds'].iloc[0]
+            
+            # Si hay gap, debería existir punto de unión
+            if last_historical_date < first_forecast_date:
+                # El primer punto del forecast debería ser el último histórico
+                assert len(forecast_growth) > len(sample_forecast_data)
