@@ -4,11 +4,13 @@ Gestor unificado de balsas marinas para el sistema Salmon Twin
 """
 import numpy as np
 import pandas as pd
+import config as cfg
 
 class GrowthModel:
-
+    
     def __init__(self):
-        None
+        # Se almacena el último error
+        self.lastError = None
 
     # Thyholdt (2014) función de crecimiento
     # t: tiempo en meses
@@ -19,6 +21,14 @@ class GrowthModel:
     # return W: peso medio del salmon en el tiempo t
     def _thyholdt_function(self, t, T, alpha, beta, mu):        
         
+        # Validación de los parámetros
+        if not isinstance(t, (int, float)) or not isinstance(T, (int, float)):
+            self.lastError = cfg.GROWTHMODEL_THYHOLDT_PARAMETER_tT_ERROR
+            return None
+        if not isinstance(alpha, (int, float)) or not isinstance(beta, (int, float)) or not isinstance(mu, (int, float)):
+            self.lastError = cfg.GROWTHMODEL_THYHOLDT_PARAMETER_alpha_beta_mu_error
+            return None
+        # Validación de los valores de los parámetros        
         if t > 0 and T > 0 and alpha > 0 and beta > 0 and mu > 0:
             result = (alpha/1000.0) / (1 + np.exp(-(beta * T) * (t - mu)))
         else:
@@ -31,7 +41,10 @@ class GrowthModel:
     # mortality_percent: tasa de mortandad en tanto por ciento de la población por unidad de tiempo (por mes)
     # t: tiempo en meses
     def _mortality(self, initial_number_fishes, mortality_percent, t):
-        return initial_number_fishes * (1 -mortality_percent) ** t      
+        if initial_number_fishes < 0 or mortality_percent < 0 or t < 0:
+            return 0.0
+        else:
+            return initial_number_fishes * (1 -mortality_percent) ** t      
 
     # Thyholdt (2014) modelo de crecimiento
     # data: Dataframe con las columnas 'ds' (fecha) e 'y' (temperatura)
@@ -80,8 +93,11 @@ class GrowthModel:
             # se convierte a meses
             # Aproximación de 365.24 / 12 = 30.44 días por mes
             date_inc = delta.total_seconds() / (30.44 * 24 * 3600)
-            # Calcula la tasa de crecimiento usando la función de Thyholdt
-            f = self._thyholdt_function(date_inc, historicalGrowth.loc[i,'y'], alpha, beta, mu)           
+            # Calcula la tasa de crecimiento usando la función de Thyholdt            
+            f = self._thyholdt_function(date_inc, historicalGrowth.loc[i,'y'], alpha, beta, mu)
+            if f is None:
+                # Si hay un error en la función, se devuelve None
+                return None, None           
             historicalGrowth.loc[i,'function'] = f
             number_fishes = self._mortality(initial_number_fishes, mortality_rate, date_inc)            
             # Calcula el factor de crecimiento usando el peso inicial y la función de crecimiento y el factor de crecimiento del mes anterior

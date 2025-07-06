@@ -130,6 +130,15 @@ class dashBoardController:
                                                     initial_weight, 
                                                     initial_number_fishes)
             
+            if growth_data is None or growth_data.empty:
+                # Mostrar un mensaje de error temporal
+                auxTools.show_error_message(cfg.DASHBOARD_NO_GROWTH_DATA_ERROR)
+                return
+            if growth_data_forescast is None or growth_data_forescast.empty:
+                # Mostrar un mensaje de error temporal
+                auxTools.show_error_message(cfg.DASHBOARD_NO_GROWTH_FORECAST_DATA_ERROR)
+                return            
+            
             raft.setGrowth(growth_data)
             raft.setGrowthForecast(growth_data_forescast)
             # Actualizar la balsa en la lista de balsas

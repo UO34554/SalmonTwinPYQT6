@@ -61,6 +61,8 @@ DASHBOARD_PREDICT_PRICE_SUCCESS = "Predicción de precios exitosa."
 DASHBOARD_PREDICT_PRICE_ERROR = "Error al predecir los precios. {error}"
 DASHBOARD_DATE_VLINE_HIS_ERROR = "Error al actualizar las líneas verticales de los históricos. {error}"
 DASHBOARD_DATE_VLINE_FOR_ERROR = "Error al actualizar las líneas verticales de las predicciones. {error}"
+DASHBOARD_NO_GROWTH_DATA_ERROR = "No hay datos de crecimiento para la balsa seleccionada."
+DASHBOARD_NO_GROWTH_FORECAST_DATA_ERROR = "No hay datos de predicción de crecimiento para la balsa seleccionada."
 #--- Datos de configuración de utilidades
 UTILITY_DATA_LOAD_FILE_NOT_FOUND_MESSAGE = "Error al cargar los datos: archivo no encontrado."
 UTILITY_DATA_LOAD_EXCEPTION_MENSSAGE = "Error al cargar los datos: "
@@ -102,6 +104,10 @@ PRICEMODEL_PRICEFORECAST_EMPTY_DATA_SAVE_ERROR = "No hay datos de predicción de
 PRICEMODEL_NOT_ENOUGHT_DATA = "No hay suficientes datos para el rango de fechas seleccionado"
 PRICEMODEL_FIT_NO_DATA = "Los datos de precio no se han cargado. Se cancela ARIMA."
 PRICEMODEL_FIT_ERROR = "Error: {e}"
+#--- Cadenas para el modelo de crecimiento en growthModel.py
+GROWTHMODEL_THYHOLDT_PARAMETER_tT_ERROR = "Los parámetros 't' y 'T' deben ser números."
+GROWTHMODEL_THYHOLDT_PARAMETER_alpha_beta_mu_error = "El parámetro 'alpha', 'beta', 'mu' debe ser un número positivo."
+
 #--- Cadenas para el modelo de temperatura marina en seaTemperature.py
 PARSER_ERROR_COLUMN_NAME_NOT_FOUND = "No se encontró la columna {columnName} en los datos de temperatura."
 REGION_NOT_FOUND = "La región {0} no existe en los datos de temperatura."
