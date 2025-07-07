@@ -35,3 +35,7 @@ ENV/
 
 # Qt Creator
 .qtcreator/
+
+# PDF y otros documentos generados
+*.pdf
+*.docx
