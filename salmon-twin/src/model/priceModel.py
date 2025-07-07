@@ -288,7 +288,7 @@ class DataPrice:
             return True
             
         except Exception as e:
-            self.lastError = f"Error entrenando modelo final: {str(e)}"
+            self.lastError = cfg.PRICEMODEL_FIT_FINAL_ERROR.format(e=str(e))
             return False
 
     def get_train_test_data(self):

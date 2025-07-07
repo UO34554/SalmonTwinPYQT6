@@ -1,10 +1,9 @@
 import pytest
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+import time
 from unittest.mock import Mock, patch
 from model.seaTemperature import DataTemperature
-import config as cfg
 
 class TestDataTemperature:
     
@@ -420,8 +419,7 @@ class TestDataTemperature:
         """
         ST-DT-017: Verificar rendimiento con datasets grandes
         """
-        # Arrange - Dataset grande (varios años de datos)
-        import time
+        # Arrange - Dataset grande (varios años de datos)        
         
         num_records = 1000
         months_cycle = ['Jan', 'Feb', 'Mar', 'Apr', 'Mai', 'Jun',

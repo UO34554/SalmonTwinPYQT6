@@ -104,6 +104,7 @@ PRICEMODEL_PRICEFORECAST_EMPTY_DATA_SAVE_ERROR = "No hay datos de predicción de
 PRICEMODEL_NOT_ENOUGHT_DATA = "No hay suficientes datos para el rango de fechas seleccionado"
 PRICEMODEL_FIT_NO_DATA = "Los datos de precio no se han cargado. Se cancela ARIMA."
 PRICEMODEL_FIT_ERROR = "Error: {e}"
+PRICEMODEL_FIT_FINAL_ERROR = "Error entrenando modelo final: {e}"
 #--- Cadenas para el modelo de crecimiento en growthModel.py
 GROWTHMODEL_THYHOLDT_PARAMETER_tT_ERROR = "Los parámetros 't' y 'T' deben ser números."
 GROWTHMODEL_THYHOLDT_PARAMETER_alpha_beta_mu_error = "El parámetro 'alpha', 'beta', 'mu' debe ser un número positivo."
