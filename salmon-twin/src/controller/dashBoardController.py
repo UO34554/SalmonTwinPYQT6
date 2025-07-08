@@ -351,8 +351,8 @@ class dashBoardController:
         # Verificar slider
         if self.dateSliderCurrent is None:
             sliderValue = 0
-            auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_PERIOD_ERROR)
-            return
+            #auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_PERIOD_ERROR)
+            #return
         else:
             sliderValue = self.dateSliderCurrent.value()
 
@@ -412,11 +412,6 @@ class dashBoardController:
 
         # Establecer los datos en el modelo
         self.priceModel.setPriceData(price_data)
-        
-        # Verificar slider
-        if self.dateSliderCurrent is None:
-            auxTools.show_error_message(cfg.DASBOARD_NO_TEMP_PERIOD_ERROR)
-            return
     
         # Calcular porcentaje
         perCent = raft.getPerCentage() / 1000
@@ -461,10 +456,22 @@ class dashBoardController:
         if success:
             # Actualizar la balsa con los nuevos datos
             raft = self.raftCon.get_raft_by_name(self.lastRaftName)
+            # Si la balsa no existe, pedir al usuario que seleccione una
+            if raft is None:
+                raft = self.choice_raft_list_dialog()
+                if raft is None:
+                    return
+            # Actualizar los datos de la balsa con los resultados de la búsqueda    
             if raft:
-                raft.setPerCentage(self.dateSliderCurrent.value())
+                if self.dateSliderCurrent is None:
+                    # Si no hay slider, usar valor por defecto
+                    raft.setPerCentage(0)
+                else:
+                    # Usar el valor del slider actual
+                    raft.setPerCentage(self.dateSliderCurrent.value())
                 raft.setPriceForecast(self.priceModel.getPriceDataForecast())
             
+            # Actualizar la balsa en la lista de balsas
             if self.raftCon.update_rafts_price_forecast(raft):
                 # Solo mostrar popup para éxito
                 auxTools.show_info_dialog("Actualizada la balsa con los nuevos datos")

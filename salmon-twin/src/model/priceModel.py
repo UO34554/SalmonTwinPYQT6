@@ -653,13 +653,22 @@ class DataPrice:
             })
             train = data[data['ds'].dt.date <= current_date]
             test = data[data['ds'].dt.date > current_date]
-            # 30.4375 es el promedio de días en un mes (365.25 / 12)
-            delta_days_forescast = (test['ds'].dt.date.max() - test['ds'].dt.date.min()).days
-            if delta_days_forescast > 0:
-                delta_months_forecast = max(1, int(1 + round(delta_days_forescast / 30.4375)))
-            else:
-                delta_months_forecast = 0
 
+            # 30.4375 es el promedio de días en un mes (365.25 / 12)
+            # Calcular el período total definido por las fechas de la balsa
+            total_period_days = (end_date - start_date).days
+            total_period_months = max(1, int(1 + round(total_period_days / 30.4375)))
+            # Calcular el número de meses a predecir basado en la duración del conjunto de prueba
+            if not test.empty:
+                delta_days_forescast = (test['ds'].dt.date.max() - test['ds'].dt.date.min()).days
+                if delta_days_forescast > 0:
+                    test_period_months = max(1, int(1 + round(delta_days_forescast / 30.4375)))
+                else:
+                    test_period_months = 1
+            else:
+                test_period_months = 1
+            # Calcular el número de meses a predecir
+            delta_months_forecast = max(test_period_months, total_period_months)
             # Variables fijadas para la búsqueda
             if not adjust:
                 # Si no se ajusta, se fijan las ventanas y estadísticas por defecto                
