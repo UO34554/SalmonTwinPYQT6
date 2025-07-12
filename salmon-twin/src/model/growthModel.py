@@ -56,9 +56,19 @@ class GrowthModel:
     # initial_weight: peso inicial del salmon en gramos
     # initial_number_fishes: número inicial de salmones
     def thyholdt_growth(self, dataHistoricalTemp, dataForescastTemp, alpha, beta, mu, mortality_rate, initial_weight, initial_number_fishes):
-       # Crea una copia del DataFrame y reinicia los índices para asegurar que sean 0, 1, 2...
-        historicalGrowth = dataHistoricalTemp.copy().reset_index(drop=True)
-        last_historicalGrowth = historicalGrowth['ds'].iloc[-1]
+
+        if dataHistoricalTemp is None or dataHistoricalTemp.empty:
+            # Crear punto inicial mínimo
+            start_date = dataForescastTemp['ds'].iloc[0] if not dataForescastTemp.empty else pd.Timestamp.now()
+            initial_temp = dataForescastTemp['yhat'].iloc[0] if not dataForescastTemp.empty else 10.0
+        
+            dataHistoricalTemp = pd.DataFrame({
+                'ds': [start_date],
+                'y': [initial_temp]
+            })
+
+        # Crea una copia del DataFrame y reinicia los índices para asegurar que sean 0, 1, 2...
+        historicalGrowth = dataHistoricalTemp.copy().reset_index(drop=True)        
         forescastGrowth = dataForescastTemp.copy().reset_index(drop=True)
         # Convertir las columnas 'ds' a formato datetime
         # Asegurar frecuencia mensual en ambos DataFrames
@@ -142,7 +152,7 @@ class GrowthModel:
         if not forescastGrowth.empty:
             last_hist_date = historicalGrowth['ds'].iloc[-1]
             first_fore_date = forescastGrowth['ds'].iloc[0]
-            if last_hist_date < first_fore_date:
+            if pd.Timestamp(last_hist_date).date() < pd.Timestamp(first_fore_date).date():
                 # Copia el último punto histórico y lo añade al principio del forecast
                 punto_union = historicalGrowth.iloc[[-1]].copy()
                 # Si la columna 'yhat' existe en forescastGrowth, iguala 'y' a 'yhat' para el punto de unión

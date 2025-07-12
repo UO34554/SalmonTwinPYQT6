@@ -99,7 +99,35 @@ class dashBoardController:
             delta_days = (raft.getEndDate() - raft.getStartDate()).days
             days = int(delta_days * percent / 1000)
             fecha_actual = raft.getStartDate() + timedelta(days)
-            df_temperature = self._filter_and_interpolate_temperature_data(df_temperature, fecha_actual)
+            fecha_inicio = raft.getStartDate()
+
+            # Detectar caso especial de fechas coincidentes
+            if fecha_inicio == fecha_actual:
+                # Caso especial: no hay período histórico
+                # Usar solo predicción sin filtro histórico
+                if not df_temperature.empty:
+                    # Encontrar el dato más cercano a fecha_inicio
+                    fecha_inicio_timestamp = pd.Timestamp(fecha_inicio)
+                    df_temperature['date_diff'] = abs(df_temperature['ds'] - fecha_inicio_timestamp)
+                    closest_idx = df_temperature['date_diff'].idxmin()
+                    closest_temp = df_temperature.loc[closest_idx, 'y']
+                
+                    # Crear punto inicial con temperatura válida
+                    initial_point = pd.DataFrame({
+                        'ds': [fecha_inicio],
+                        'y': [closest_temp]
+                    })
+                    df_temperature = initial_point
+                
+                    # Limpiar columna temporal
+                    df_temperature.drop('date_diff', axis=1, errors='ignore', inplace=True)
+                else:
+                    auxTools.show_error_message("No hay datos de temperatura para iniciar el modelo de crecimiento")
+                    return
+            else:
+                # Caso normal: aplicar filtro histórico            
+                df_temperature = self._filter_and_interpolate_temperature_data(df_temperature, fecha_actual, fecha_inicio)
+    
             if df_temperature is None or df_temperature.empty:
                 auxTools.show_error_message(cfg.DASHBOARD_NO_TEMP_DATA_ERROR)
                 return
@@ -499,7 +527,7 @@ class dashBoardController:
     Returns:
         DataFrame filtrado con punto interpolado si es necesario
     """
-    def _filter_and_interpolate_temperature_data(self, dataTemp, forescast_start_date):
+    def _filter_and_interpolate_temperature_data(self, dataTemp, forescast_start_date, historical_start_date=None):
         try:
              # Crear copia para evitar modificar el original
             filtered_data = dataTemp.copy()        
@@ -517,6 +545,28 @@ class dashBoardController:
                 forecast_date = forescast_start_date
             exact_match = filtered_data[filtered_data['ds'].dt.date == forecast_date]
             forecast_timestamp = pd.Timestamp(forecast_date)
+
+            # Si se proporciona una fecha histórica, filtrar los datos históricos
+            if historical_start_date is not None:
+                historical_timestamp = pd.Timestamp(historical_start_date)            
+                # Detectar fechas coincidentes
+                if historical_timestamp.date() == forecast_timestamp.date():
+                    if not exact_match.empty:                        
+                        return exact_match
+                    else:
+                        # Buscar dato más cercano
+                        if not filtered_data.empty:
+                            available_dates = filtered_data['ds'].dt.date
+                            date_diffs = abs((available_dates - forecast_date).dt.days)
+                            closest_idx = date_diffs.idxmin()
+                            closest_data = filtered_data.loc[[closest_idx]]                        
+                            return closest_data
+                        else:                        
+                            return pd.DataFrame(columns=['ds', 'y'])
+                else:
+                    # Filtrar datos históricos normalmente
+                    filtered_data = filtered_data[filtered_data['ds'] >= historical_timestamp]
+
             if not exact_match.empty:
                 # Si existe la fecha exacta, usar los datos hasta esa fecha (incluyéndola)
                 historical_data = filtered_data[filtered_data['ds'] <= forecast_timestamp]                
@@ -922,85 +972,69 @@ class dashBoardController:
         if raft is None or raft.getTemperature().empty:
             # Mostrar una 'X' roja si no hay datos de temperatura
             plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
-        else:
-            # Obtener los datos de temperatura de la balsa
-            df_temperature = raft.getTemperature()
-            # Convertir la columna 'ds' a formato datetime si no está ya
-            df_temperature['ds'] = pd.to_datetime(df_temperature['ds'], errors='coerce')
-            # Eliminar valores NaT antes de filtrar
-            df_temperature = df_temperature.dropna(subset=['ds'])
-            # Filtrar los datos de temperatura con la fecha inicial y la fecha actual
-            percent = raft.getPerCentage()
-            delta_days = (raft.getEndDate() - raft.getStartDate()).days
-            days = int(delta_days * percent / 1000)
-            fecha_actual = raft.getStartDate() + timedelta(days)
-            df_temperature = df_temperature[(df_temperature['ds'].dt.date >= raft.getStartDate()) & 
-                                        (df_temperature['ds'].dt.date <= fecha_actual)]
+            plot_widget.setTitle("Modelo de Crecimiento (sin balsa)")
+            self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
+            return
 
-
-            if df_temperature.empty:
-                # Mostrar una 'X' roja si no hay datos de temperatura
+        # Obtener los datos de crecimiento
+        growth_data = raft.getGrowthData()
+        growth_data_forescast = raft.getGrowthForecastData()
+        if growth_data is None or growth_data.empty:
+                # Mostrar una 'X' roja si no hay datos de crecimiento
                 plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
-            else:
-                # Obtener los datos de crecimiento
-                growth_data = raft.getGrowthData()
-                growth_data_forescast = raft.getGrowthForecastData()
-                if growth_data is None or growth_data.empty:
-                    # Mostrar una 'X' roja si no hay datos de crecimiento
-                    plot_widget.plot([0], [0], pen=None, symbol='x', symbolSize=20, symbolPen='r', symbolBrush='r')
-                    self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
-                    return
+                self._view.centralwidget.layout().addWidget(plot_widget, pos_i, pos_j)
+                return
             
-                # Convertir fechas a objetos datetime primero
-                x_dates = pd.to_datetime(growth_data['ds'], errors='coerce')
-                xf_dates = pd.to_datetime(growth_data_forescast['ds'], errors='coerce')
+        # Convertir fechas a objetos datetime primero
+        x_dates = pd.to_datetime(growth_data['ds'], errors='coerce')
+        xf_dates = pd.to_datetime(growth_data_forescast['ds'], errors='coerce')
 
-                # Luego convertir a timestamps numéricos para graficar y etiquetas
-                x = x_dates.map(pd.Timestamp.timestamp).values
-                xf = xf_dates.map(pd.Timestamp.timestamp).values                
-                y_biomass = growth_data['biomass'].values
-                y_biomass_f = growth_data_forescast['biomass'].values
-                y_number = growth_data['number_fishes'].values
-                y_number_f = growth_data_forescast['number_fishes'].values
+        # Luego convertir a timestamps numéricos para graficar y etiquetas
+        x = x_dates.map(pd.Timestamp.timestamp).values
+        xf = xf_dates.map(pd.Timestamp.timestamp).values                
+        y_biomass = growth_data['biomass'].values
+        y_biomass_f = growth_data_forescast['biomass'].values
+        y_number = growth_data['number_fishes'].values
+        y_number_f = growth_data_forescast['number_fishes'].values
 
-                # Configurar el rango de visualización para mostrar desde la fecha inicial a la fecha final
-                min_x = min(x.min(), xf.min())
-                max_x = max(x.max(), xf.max())
-                min_y = min(y_biomass.min(), y_biomass_f.min(),y_number.min(), y_number_f.min())
-                max_y = max(y_biomass.max(), y_biomass_f.max(),y_number.max(), y_number_f.max())
+        # Configurar el rango de visualización para mostrar desde la fecha inicial a la fecha final
+        min_x = min(x.min(), xf.min())
+        max_x = max(x.max(), xf.max())
+        min_y = min(y_biomass.min(), y_biomass_f.min(),y_number.min(), y_number_f.min())
+        max_y = max(y_biomass.max(), y_biomass_f.max(),y_number.max(), y_number_f.max())
 
-                plot_widget.setXRange(min_x, max_x, padding=0.1)
-                plot_widget.setYRange(min_y, max_y, padding=0.1)
+        plot_widget.setXRange(min_x, max_x, padding=0.1)
+        plot_widget.setYRange(min_y, max_y, padding=0.1)
             
-                # Personalizar los ticks del eje X
-                axis = plot_widget.getAxis('bottom')                
-                axis.setLabel("", units="")
+        # Personalizar los ticks del eje X
+        axis = plot_widget.getAxis('bottom')                
+        axis.setLabel("", units="")
 
-                # Guardar referencia al widget y a los valores de X para actualizaciones posteriores
-                self._growth_widget = plot_widget
-                self._growth_x_values = np.concatenate((x, xf))
+        # Guardar referencia al widget y a los valores de X para actualizaciones posteriores
+        self._growth_widget = plot_widget
+        self._growth_x_values = np.concatenate((x, xf))
 
-                plot_widget.getViewBox().sigRangeChanged.connect(lambda vb, range_vals: self._update_growth_axis_ticks(range_vals))
+        plot_widget.getViewBox().sigRangeChanged.connect(lambda vb, range_vals: self._update_growth_axis_ticks(range_vals))
 
-                # Establecer los ticks iniciales
-                self._update_growth_axis_ticks([[min_x, max_x], [min_y, max_y]])
+        # Establecer los ticks iniciales
+        self._update_growth_axis_ticks([[min_x, max_x], [min_y, max_y]])
             
-                # Graficar los datos de biomasa, crecimiento individual y número de peces
-                plot_widget.plot(x, y_biomass, pen=pg.mkPen(color='b', width=2), name="Biomasa historica")
-                plot_widget.plot(xf, y_biomass_f, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Biomasa Predicción")
-                plot_widget.plot(x, y_number, pen=pg.mkPen(color='darkred', width=2), name="Nº de Peces histórico")
-                plot_widget.plot(xf, y_number_f, pen=pg.mkPen(color='darkred', width=2, style=Qt.DashLine), name="Nº de Peces Predicción")
+        # Graficar los datos de biomasa, crecimiento individual y número de peces
+        plot_widget.plot(x, y_biomass, pen=pg.mkPen(color='b', width=2), name="Biomasa historica")
+        plot_widget.plot(xf, y_biomass_f, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine), name="Biomasa Predicción")
+        plot_widget.plot(x, y_number, pen=pg.mkPen(color='darkred', width=2), name="Nº de Peces histórico")
+        plot_widget.plot(xf, y_number_f, pen=pg.mkPen(color='darkred', width=2, style=Qt.DashLine), name="Nº de Peces Predicción")
 
-                # Añadir línea vertical para la fecha actual
-                self.growth_vline_forescast = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine))
-                plot_widget.addItem(self.growth_vline_forescast)
-                self.growth_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='b', width=2, style=Qt.DashLine))
-                plot_widget.addItem(self.growth_vline)
+        # Añadir línea vertical para la fecha actual
+        self.growth_vline_forescast = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='r', width=2, style=Qt.DashLine))
+        plot_widget.addItem(self.growth_vline_forescast)
+        self.growth_vline = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen(color='b', width=2, style=Qt.DashLine))
+        plot_widget.addItem(self.growth_vline)
                                 
-                # Establecer posición inicial
-                initial_pos = xf[0]
-                self.growth_vline.setPos(initial_pos)
-                self.growth_vline_forescast.setPos(initial_pos)
+        # Establecer posición inicial
+        initial_pos = xf[0]
+        self.growth_vline.setPos(initial_pos)
+        self.growth_vline_forescast.setPos(initial_pos)
         
         # Establecer color negro para la leyenda
         for item in legend.items:
